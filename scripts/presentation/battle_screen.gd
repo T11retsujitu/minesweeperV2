@@ -30,7 +30,9 @@ var preview_overlay = null
 var preview_body_label = null
 var help_overlay = null
 var terminal_overlay = null
+var terminal_panel = null
 var terminal_title_label = null
+var terminal_tween = null
 
 
 func _ready():
@@ -43,6 +45,7 @@ func _ready():
 		"enemy_bar": enemy_bar,
 		"status_label": status_label,
 		"controller": controller,
+		"show_terminal": Callable(self, "_show_terminal"),
 	})
 	controller.events_emitted.connect(_on_events_emitted)
 	controller.state_reset.connect(_on_state_reset)
@@ -133,6 +136,7 @@ func _on_state_reset(_state):
 
 
 func _handle_events(events):
+	var terminal_title = _terminal_title_from_events(events)
 	for event in events:
 		var event_type = event.get("type", "")
 		if event_type == "detonation_preview":
@@ -142,10 +146,6 @@ func _handle_events(events):
 		elif event_type == "state_reset":
 			_hide_preview()
 			_hide_terminal()
-		elif event_type == "victory":
-			_show_terminal("VICTORY")
-		elif event_type == "defeat":
-			_show_terminal("DEFEAT")
 
 	_update_status_from_events(events)
 	_render()
@@ -153,6 +153,8 @@ func _handle_events(events):
 		await _play_event_feedback(events)
 		controller.notify_effects_done()
 		_render()
+	elif terminal_title != "":
+		_show_terminal_immediate(terminal_title)
 
 
 func _render():
@@ -196,12 +198,69 @@ func _hide_preview():
 
 
 func _show_terminal(title):
+	_kill_terminal_tween()
 	terminal_title_label.text = title
+	terminal_title_label.add_theme_color_override("font_color", _terminal_title_color(title))
 	terminal_overlay.visible = true
+	terminal_overlay.modulate = Color(1.0, 1.0, 1.0, 0.0)
+	_prepare_terminal_panel_pivot()
+	terminal_panel.scale = Vector2.ONE * FxConfig.TERMINAL_START_SCALE
+	terminal_tween = create_tween()
+	terminal_tween.set_parallel(true)
+	terminal_tween.tween_property(terminal_overlay, "modulate:a", 1.0, FxConfig.TERMINAL_FADE_SEC)
+	terminal_tween.tween_property(terminal_panel, "scale", Vector2.ONE, FxConfig.TERMINAL_FADE_SEC).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	var timer = get_tree().create_timer(FxConfig.TERMINAL_FADE_SEC)
+	timer.timeout.connect(_on_terminal_animation_done)
+	return timer.timeout
+
+
+func _show_terminal_immediate(title):
+	_kill_terminal_tween()
+	terminal_title_label.text = title
+	terminal_title_label.add_theme_color_override("font_color", _terminal_title_color(title))
+	terminal_overlay.visible = true
+	terminal_overlay.modulate = Color.WHITE
+	_prepare_terminal_panel_pivot()
+	terminal_panel.scale = Vector2.ONE
 
 
 func _hide_terminal():
+	_kill_terminal_tween()
 	terminal_overlay.visible = false
+	terminal_overlay.modulate = Color.WHITE
+	if terminal_panel != null:
+		_prepare_terminal_panel_pivot()
+		terminal_panel.scale = Vector2.ONE
+	if terminal_title_label != null:
+		terminal_title_label.text = ""
+		terminal_title_label.add_theme_color_override("font_color", FxConfig.COLOR_TERMINAL_DEFAULT)
+
+
+func _kill_terminal_tween():
+	if terminal_tween != null:
+		terminal_tween.kill()
+		terminal_tween = null
+
+
+func _on_terminal_animation_done():
+	terminal_tween = null
+
+
+func _prepare_terminal_panel_pivot():
+	if terminal_panel == null:
+		return
+	var panel_size = terminal_panel.size
+	if panel_size == Vector2.ZERO:
+		panel_size = terminal_panel.custom_minimum_size
+	terminal_panel.pivot_offset = panel_size * 0.5
+
+
+func _terminal_title_color(title):
+	if title == "VICTORY":
+		return FxConfig.COLOR_TERMINAL_VICTORY
+	if title == "DEFEAT":
+		return FxConfig.COLOR_TERMINAL_DEFEAT
+	return FxConfig.COLOR_TERMINAL_DEFAULT
 
 
 func _format_preview_text(center, preview):
@@ -272,6 +331,17 @@ func _update_status_from_events(events):
 
 func _play_event_feedback(events):
 	await feedback.play_events(events, controller.get_snapshot())
+
+
+func _terminal_title_from_events(events):
+	var title = ""
+	for event in events:
+		var event_type = event.get("type", "")
+		if event_type == "victory":
+			title = "VICTORY"
+		elif event_type == "defeat":
+			title = "DEFEAT"
+	return title
 
 
 func _sync_hp_bars_immediate(snapshot):
@@ -509,11 +579,11 @@ func _build_terminal_overlay():
 	terminal_overlay = _make_overlay()
 	add_child(terminal_overlay)
 
-	var panel = _make_overlay_panel(Vector2(430, 260))
-	terminal_overlay.add_child(panel)
+	terminal_panel = _make_overlay_panel(Vector2(430, 260))
+	terminal_overlay.add_child(terminal_panel)
 
 	var margin = _make_margin(22)
-	panel.add_child(margin)
+	terminal_panel.add_child(margin)
 
 	var box = VBoxContainer.new()
 	box.add_theme_constant_override("separation", 18)

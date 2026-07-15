@@ -5,6 +5,7 @@ const FxConfig = preload("res://scripts/presentation/fx_config.gd")
 
 func _ready():
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_theme_font_size_override("font_size", FxConfig.FLOAT_FONT_SIZE)
 	add_theme_color_override("font_outline_color", Color.BLACK)
 	add_theme_constant_override("outline_size", 4)

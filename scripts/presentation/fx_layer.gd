@@ -14,8 +14,28 @@ func _ready():
 func spawn_damage_float(global_pos, label_text, color):
 	var damage_float = DamageFloat.new()
 	damage_float.setup(label_text, color)
-	damage_float.position = get_global_transform().affine_inverse() * global_pos
+	var label_size = _estimate_damage_float_size(str(label_text))
+	damage_float.size = label_size
+	damage_float.custom_minimum_size = label_size
+	damage_float.position = _clamped_damage_float_position(global_pos, label_size)
 	add_child(damage_float)
+
+
+func _estimate_damage_float_size(label_text):
+	var width = max(FxConfig.FLOAT_FONT_SIZE, label_text.length() * FxConfig.FLOAT_FONT_SIZE * FxConfig.FLOAT_CHAR_WIDTH_RATIO)
+	var height = FxConfig.FLOAT_FONT_SIZE + 10.0
+	return Vector2(width, height)
+
+
+func _clamped_damage_float_position(global_pos, label_size):
+	var local_pos = get_global_transform().affine_inverse() * global_pos
+	var layer_size = size
+	if layer_size.x <= 0.0:
+		layer_size = get_viewport_rect().size
+	var min_x = FxConfig.FLOAT_EDGE_MARGIN
+	var max_x = max(min_x, layer_size.x - label_size.x - FxConfig.FLOAT_EDGE_MARGIN)
+	var x = clamp(local_pos.x - label_size.x * 0.5, min_x, max_x)
+	return Vector2(x, local_pos.y - label_size.y * 0.5)
 
 
 func fire_projectile(from_global, to_global):

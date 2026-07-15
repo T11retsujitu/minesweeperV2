@@ -166,7 +166,7 @@ func _value_width(value):
 func _update_value_label():
 	if value_label == null:
 		return
-	value_label.text = "%d/%d" % [int(round(current_value)), max_value]
+	value_label.text = "%d/%d" % [max(0, int(round(current_value))), max_value]
 
 
 func _kill_hp_tween():

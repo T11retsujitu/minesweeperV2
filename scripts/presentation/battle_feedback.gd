@@ -9,6 +9,7 @@ var enemy_bar = null
 var status_label = null
 var controller = null
 var last_enemy_position = null
+var show_terminal_callback = Callable()
 
 
 func setup(refs: Dictionary):
@@ -18,12 +19,14 @@ func setup(refs: Dictionary):
 	enemy_bar = refs.get("enemy_bar")
 	status_label = refs.get("status_label")
 	controller = refs.get("controller")
+	show_terminal_callback = refs.get("show_terminal", Callable())
 
 
 func play_events(events, snapshot):
 	var waited = false
 	var accidental_mine_cell = null
 	var consumed_enemy_attack_damage_indexes = {}
+	var terminal_title = _terminal_title_from_events(events)
 	var pos = snapshot["enemy_position"]
 	# Enemy placement is restricted to the inner 5x5, so (0,0) is only the dead-enemy sentinel.
 	if pos != Vector2i.ZERO:
@@ -65,6 +68,13 @@ func play_events(events, snapshot):
 			else:
 				await board_view.get_tree().process_frame
 			waited = true
+	if terminal_title != "":
+		await board_view.get_tree().create_timer(FxConfig.TERMINAL_DELAY_SEC).timeout
+		if controller != null and not controller.is_busy:
+			return
+		if show_terminal_callback.is_valid():
+			await show_terminal_callback.call(terminal_title)
+		waited = true
 	if not waited:
 		await board_view.get_tree().process_frame
 
@@ -110,6 +120,17 @@ func _enemy_attack_damage_index(events, index):
 	if int(event.get("amount", 0)) <= 0:
 		return -1
 	return index
+
+
+func _terminal_title_from_events(events):
+	var title = ""
+	for event in events:
+		var event_type = event.get("type", "")
+		if event_type == "victory":
+			title = "VICTORY"
+		elif event_type == "defeat":
+			title = "DEFEAT"
+	return title
 
 
 func _flash_label_nonblocking(label, color):
