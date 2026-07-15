@@ -1,6 +1,8 @@
 extends Control
 
 const BattleController = preload("res://scripts/application/battle_controller.gd")
+const BattleFeedback = preload("res://scripts/presentation/battle_feedback.gd")
+const FxLayer = preload("res://scripts/presentation/fx_layer.gd")
 const BoardViewScene = preload("res://scenes/battle/board_view.tscn")
 
 var controller = BattleController.new()
@@ -8,6 +10,8 @@ var debug_show_mines = false
 
 var root = null
 var board_view = null
+var fx_layer = null
+var feedback = null
 var player_hp_label = null
 var enemy_hp_label = null
 var enemy_countdown_label = null
@@ -28,6 +32,15 @@ var terminal_title_label = null
 
 func _ready():
 	_build_layout()
+	feedback = BattleFeedback.new()
+	feedback.setup({
+		"board_view": board_view,
+		"fx_layer": fx_layer,
+		"player_hp_label": player_hp_label,
+		"enemy_hp_label": enemy_hp_label,
+		"status_label": status_label,
+		"controller": controller,
+	})
 	controller.events_emitted.connect(_on_events_emitted)
 	controller.state_reset.connect(_on_state_reset)
 	_render()
@@ -108,6 +121,8 @@ func _on_events_emitted(events):
 
 
 func _on_state_reset(_state):
+	if fx_layer != null:
+		fx_layer.clear_all()
 	_hide_preview()
 	_hide_terminal()
 	_render()
@@ -251,31 +266,7 @@ func _update_status_from_events(events):
 
 
 func _play_event_feedback(events):
-	var waited = false
-	for event in events:
-		var event_type = event.get("type", "")
-		if event_type == "mine_exploded" or event_type == "dud_detonation":
-			await board_view.flash_explosion(event["cell"])
-			waited = true
-		elif event_type == "enemy_damaged" and int(event.get("amount", 0)) > 0:
-			await _flash_label(enemy_hp_label, Color(1.0, 0.35, 0.22))
-			waited = true
-		elif event_type == "player_damaged":
-			await _flash_label(player_hp_label, Color(1.0, 0.35, 0.22))
-			waited = true
-		elif event_type == "enemy_attacked":
-			status_label.text = "Enemy attacked"
-			await _flash_label(status_label, Color(1.0, 0.55, 0.18))
-			waited = true
-	if not waited:
-		await get_tree().process_frame
-
-
-func _flash_label(label, color):
-	label.modulate = color
-	var tween = create_tween()
-	tween.tween_property(label, "modulate", Color.WHITE, 0.28)
-	await tween.finished
+	await feedback.play_events(events, controller.get_snapshot())
 
 
 func _update_log(lines):
@@ -356,6 +347,9 @@ func _build_layout():
 	_build_board_area()
 	_build_controls()
 	_build_log()
+	fx_layer = FxLayer.new()
+	add_child(fx_layer)
+	board_view.set_fx_layer(fx_layer)
 	_build_preview_overlay()
 	_build_help_overlay()
 	_build_terminal_overlay()

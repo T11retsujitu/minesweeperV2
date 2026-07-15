@@ -4,11 +4,13 @@ signal cell_tapped(coord)
 signal cell_long_pressed(coord)
 
 const Balance = preload("res://scripts/config/game_balance.gd")
+const FxConfig = preload("res://scripts/presentation/fx_config.gd")
 const CellViewScene = preload("res://scenes/battle/cell_view.tscn")
 
 var grid = null
 var cells = {}
 var input_enabled = true
+var fx_layer = null
 var preview_center = null
 var preview_damage_map = {}
 var preview_cells = []
@@ -42,6 +44,10 @@ func set_input_enabled(value):
 		cells[coord].set_input_enabled(value)
 
 
+func set_fx_layer(value):
+	fx_layer = value
+
+
 func set_preview(center, preview):
 	preview_center = center
 	preview_damage_map = preview["damage_map"]
@@ -65,8 +71,8 @@ func flash_explosion(center):
 		var color = Color(1.0, 0.78, 0.20, 0.76)
 		if coord == center:
 			color = Color(1.0, 0.24, 0.10, 0.88)
-		cells[coord].flash(color, 0.42)
-	await get_tree().create_timer(0.42).timeout
+		cells[coord].flash(color, FxConfig.EXPLOSION_FLASH_SEC)
+	await get_tree().create_timer(FxConfig.EXPLOSION_FLASH_SEC).timeout
 
 
 func debug_cell_canvas_position(coord):
