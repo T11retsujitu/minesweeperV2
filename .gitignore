@@ -1,0 +1,12 @@
+# Godot 4 キャッシュ・生成物
+.godot/
+*.tmp
+
+# エクスポート生成物
+export/
+*.apk
+*.aab
+
+# OS/エディタ
+.DS_Store
+*~
