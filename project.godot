@@ -3,6 +3,7 @@ config_version=5
 [application]
 
 config/name="Minesweeper Roguelite"
+run/main_scene="res://scenes/main.tscn"
 
 [display]
 
