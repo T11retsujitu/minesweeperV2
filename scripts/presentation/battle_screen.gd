@@ -2,7 +2,10 @@ extends Control
 
 const BattleController = preload("res://scripts/application/battle_controller.gd")
 const BattleFeedback = preload("res://scripts/presentation/battle_feedback.gd")
+const Balance = preload("res://scripts/config/game_balance.gd")
+const FxConfig = preload("res://scripts/presentation/fx_config.gd")
 const FxLayer = preload("res://scripts/presentation/fx_layer.gd")
+const HpBar = preload("res://scripts/presentation/hp_bar.gd")
 const BoardViewScene = preload("res://scenes/battle/board_view.tscn")
 
 var controller = BattleController.new()
@@ -12,8 +15,8 @@ var root = null
 var board_view = null
 var fx_layer = null
 var feedback = null
-var player_hp_label = null
-var enemy_hp_label = null
+var player_bar = null
+var enemy_bar = null
 var enemy_countdown_label = null
 var enemy_intent_label = null
 var seed_label = null
@@ -36,8 +39,8 @@ func _ready():
 	feedback.setup({
 		"board_view": board_view,
 		"fx_layer": fx_layer,
-		"player_hp_label": player_hp_label,
-		"enemy_hp_label": enemy_hp_label,
+		"player_bar": player_bar,
+		"enemy_bar": enemy_bar,
 		"status_label": status_label,
 		"controller": controller,
 	})
@@ -123,6 +126,7 @@ func _on_events_emitted(events):
 func _on_state_reset(_state):
 	if fx_layer != null:
 		fx_layer.clear_all()
+	_sync_hp_bars_immediate(controller.get_snapshot())
 	_hide_preview()
 	_hide_terminal()
 	_render()
@@ -153,8 +157,9 @@ func _handle_events(events):
 
 func _render():
 	var snapshot = controller.get_snapshot()
-	player_hp_label.text = "Player HP: %d" % int(snapshot["player_hp"])
-	enemy_hp_label.text = "Enemy HP: %d" % int(snapshot["enemy_hp"])
+	if not controller.is_busy:
+		player_bar.animate_to(int(snapshot["player_hp"]))
+		enemy_bar.animate_to(int(snapshot["enemy_hp"]))
 	enemy_countdown_label.text = "Enemy countdown: %d" % int(snapshot["enemy_countdown"])
 	enemy_intent_label.text = "Enemy intent: Attack 2"
 	seed_label.text = "Seed: " + str(snapshot["seed_label"])
@@ -269,6 +274,11 @@ func _play_event_feedback(events):
 	await feedback.play_events(events, controller.get_snapshot())
 
 
+func _sync_hp_bars_immediate(snapshot):
+	player_bar.set_value_immediate(int(snapshot["player_hp"]))
+	enemy_bar.set_value_immediate(int(snapshot["enemy_hp"]))
+
+
 func _update_log(lines):
 	for child in log_box.get_children():
 		child.queue_free()
@@ -369,8 +379,10 @@ func _build_hud():
 	hud.add_theme_constant_override("v_separation", 7)
 	margin.add_child(hud)
 
-	player_hp_label = _make_hud_label()
-	enemy_hp_label = _make_hud_label()
+	player_bar = HpBar.new()
+	player_bar.setup("PLAYER", Balance.PLAYER_MAX_HP, FxConfig.COLOR_HP_PLAYER)
+	enemy_bar = HpBar.new()
+	enemy_bar.setup("ENEMY", Balance.ENEMY_MAX_HP, FxConfig.COLOR_HP_ENEMY)
 	enemy_countdown_label = _make_hud_label()
 	enemy_intent_label = _make_hud_label()
 	seed_label = _make_hud_label()
@@ -379,7 +391,9 @@ func _build_hud():
 	status_label = _make_hud_label()
 	status_label.text = "Ready"
 
-	for label in [player_hp_label, enemy_hp_label, enemy_countdown_label, enemy_intent_label, seed_label, turn_label, input_mode_label, status_label]:
+	hud.add_child(player_bar)
+	hud.add_child(enemy_bar)
+	for label in [enemy_countdown_label, enemy_intent_label, seed_label, turn_label, input_mode_label, status_label]:
 		hud.add_child(label)
 
 

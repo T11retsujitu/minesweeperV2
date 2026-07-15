@@ -4,33 +4,62 @@ const FxConfig = preload("res://scripts/presentation/fx_config.gd")
 
 var board_view = null
 var fx_layer = null
-var player_hp_label = null
-var enemy_hp_label = null
+var player_bar = null
+var enemy_bar = null
 var status_label = null
 var controller = null
+var last_enemy_position = null
 
 
 func setup(refs: Dictionary):
 	board_view = refs.get("board_view")
 	fx_layer = refs.get("fx_layer")
-	player_hp_label = refs.get("player_hp_label")
-	enemy_hp_label = refs.get("enemy_hp_label")
+	player_bar = refs.get("player_bar")
+	enemy_bar = refs.get("enemy_bar")
 	status_label = refs.get("status_label")
 	controller = refs.get("controller")
 
 
-func play_events(events, _snapshot):
+func play_events(events, snapshot):
 	var waited = false
+	var accidental_mine_cell = null
+	var pos = snapshot["enemy_position"]
+	# Enemy placement is restricted to the inner 5x5, so (0,0) is only the dead-enemy sentinel.
+	if pos != Vector2i.ZERO:
+		last_enemy_position = pos
 	for event in events:
+		if controller != null and not controller.is_busy:
+			return
 		var event_type = event.get("type", "")
 		if event_type == "mine_exploded" or event_type == "dud_detonation":
+			if event_type == "mine_exploded" and bool(event.get("accidental", false)):
+				accidental_mine_cell = event["cell"]
 			await board_view.flash_explosion(event["cell"])
 			waited = true
 		elif event_type == "enemy_damaged" and int(event.get("amount", 0)) > 0:
-			await _flash_label(enemy_hp_label, FxConfig.COLOR_DAMAGE_ENEMY_ATK)
+			var enemy_amount = int(event.get("amount", 0))
+			if last_enemy_position != null:
+				var enemy_pos = board_view.debug_cell_canvas_position(last_enemy_position)
+				fx_layer.spawn_damage_float(enemy_pos, "-%d" % enemy_amount, FxConfig.COLOR_DAMAGE_DEALT)
+			enemy_bar.flash()
+			await enemy_bar.animate_to(int(event["after"]))
 			waited = true
-		elif event_type == "player_damaged":
-			await _flash_label(player_hp_label, FxConfig.COLOR_DAMAGE_ENEMY_ATK)
+		elif event_type == "player_damaged" and int(event.get("amount", 0)) > 0:
+			var player_amount = int(event.get("amount", 0))
+			var source = str(event.get("source", ""))
+			var player_pos = player_bar.get_global_rect().get_center()
+			var text = "-%d" % player_amount
+			var color = FxConfig.COLOR_DAMAGE_ENEMY_ATK
+			if source == "accidental_mine":
+				if accidental_mine_cell != null:
+					player_pos = board_view.debug_cell_canvas_position(accidental_mine_cell)
+				text = "-%d MINE!" % player_amount
+				color = FxConfig.COLOR_DAMAGE_MINE
+			elif source == "enemy_attack":
+				text = "-%d ENEMY ATK" % player_amount
+			fx_layer.spawn_damage_float(player_pos, text, color)
+			player_bar.flash()
+			await player_bar.animate_to(int(event["after"]))
 			waited = true
 		elif event_type == "enemy_attacked":
 			status_label.text = "Enemy attacked"
