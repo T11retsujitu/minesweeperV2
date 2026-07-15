@@ -61,25 +61,70 @@ func clear_preview():
 	preview_cells = []
 
 
-func flash_explosion(center):
-	var targets = []
-	for y in range(center.y - Balance.EXPLOSION_RADIUS_CHEBYSHEV, center.y + Balance.EXPLOSION_RADIUS_CHEBYSHEV + 1):
-		for x in range(center.x - Balance.EXPLOSION_RADIUS_CHEBYSHEV, center.x + Balance.EXPLOSION_RADIUS_CHEBYSHEV + 1):
-			var coord = Vector2i(x, y)
-			if cells.has(coord):
-				targets.append(coord)
-	for coord in targets:
-		var color = Color(1.0, 0.78, 0.20, 0.76)
-		if coord == center:
-			color = Color(1.0, 0.24, 0.10, 0.88)
-		cells[coord].flash(color, FxConfig.EXPLOSION_FLASH_SEC)
-	await get_tree().create_timer(FxConfig.EXPLOSION_FLASH_SEC).timeout
+func play_explosion(center, accidental):
+	if not cells.has(center):
+		await get_tree().process_frame
+		return
+
+	var elapsed = 0.0
+	_flash_explosion_cell(center, true)
+	_spawn_explosion_particles(center, true)
+	if fx_layer != null:
+		await fx_layer.hit_stop()
+		elapsed += FxConfig.HIT_STOP_SEC
+
+	await get_tree().create_timer(FxConfig.EXPLOSION_RING_DELAY).timeout
+	elapsed += FxConfig.EXPLOSION_RING_DELAY
+	for coord in _explosion_ring_cells(center):
+		_flash_explosion_cell(coord, false)
+		_spawn_explosion_particles(coord, false)
+
+	if fx_layer != null:
+		var shake_scale = FxConfig.EXPLOSION_SHAKE_SCALE
+		if accidental:
+			shake_scale = FxConfig.ACCIDENTAL_EXPLOSION_SHAKE_SCALE
+		await fx_layer.shake(shake_scale)
+		elapsed += FxConfig.SHAKE_DURATION
+
+	var remaining = max(0.0, FxConfig.EXPLOSION_TOTAL_BLOCK_SEC - elapsed)
+	if remaining > 0.0:
+		await get_tree().create_timer(remaining).timeout
+
+
+func play_dud(center):
+	if cells.has(center):
+		cells[center].flash(Color(1.0, 0.78, 0.20, 0.42), FxConfig.DUD_FLASH_SEC)
+	await get_tree().create_timer(FxConfig.DUD_FLASH_SEC).timeout
 
 
 func play_enemy_attack_glow(coord):
 	if cells.has(coord):
 		cells[coord].flash_attack_glow(FxConfig.ENEMY_ATTACK_GLOW_SEC)
 	await get_tree().create_timer(FxConfig.ENEMY_ATTACK_GLOW_SEC).timeout
+
+
+func _explosion_ring_cells(center):
+	var targets = []
+	for y in range(center.y - Balance.EXPLOSION_RADIUS_CHEBYSHEV, center.y + Balance.EXPLOSION_RADIUS_CHEBYSHEV + 1):
+		for x in range(center.x - Balance.EXPLOSION_RADIUS_CHEBYSHEV, center.x + Balance.EXPLOSION_RADIUS_CHEBYSHEV + 1):
+			var coord = Vector2i(x, y)
+			if coord != center and cells.has(coord):
+				targets.append(coord)
+	return targets
+
+
+func _flash_explosion_cell(coord, is_center):
+	var color = Color(1.0, 0.78, 0.20, 0.76)
+	if is_center:
+		color = Color(1.0, 0.24, 0.10, 0.88)
+	cells[coord].flash(color, FxConfig.EXPLOSION_FLASH_SEC)
+
+
+func _spawn_explosion_particles(coord, is_center):
+	if fx_layer == null:
+		return
+	var global_pos = cells[coord].get_global_rect().get_center()
+	fx_layer.spawn_explosion_particles(global_pos, is_center)
 
 
 func debug_cell_canvas_position(coord):

@@ -66,9 +66,9 @@ func hit_stop():
 func spawn_explosion_particles(global_pos, is_center):
 	var particles = CPUParticles2D.new()
 	particles.one_shot = true
-	particles.amount = 16
+	particles.amount = FxConfig.EXPLOSION_PARTICLE_CENTER_COUNT
 	if not is_center:
-		particles.amount = 10
+		particles.amount = FxConfig.EXPLOSION_PARTICLE_RING_COUNT
 	particles.lifetime = 0.38
 	particles.explosiveness = 0.9
 	particles.randomness = 0.35

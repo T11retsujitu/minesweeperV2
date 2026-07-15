@@ -35,10 +35,14 @@ func play_events(events, snapshot):
 		if consumed_enemy_attack_damage_indexes.has(index):
 			continue
 		var event_type = event.get("type", "")
-		if event_type == "mine_exploded" or event_type == "dud_detonation":
-			if event_type == "mine_exploded" and bool(event.get("accidental", false)):
+		if event_type == "mine_exploded":
+			var accidental = bool(event.get("accidental", false))
+			if accidental:
 				accidental_mine_cell = event["cell"]
-			await board_view.flash_explosion(event["cell"])
+			await board_view.play_explosion(event["cell"], accidental)
+			waited = true
+		elif event_type == "dud_detonation":
+			await board_view.play_dud(event["cell"])
 			waited = true
 		elif event_type == "enemy_damaged" and int(event.get("amount", 0)) > 0:
 			var enemy_amount = int(event.get("amount", 0))
