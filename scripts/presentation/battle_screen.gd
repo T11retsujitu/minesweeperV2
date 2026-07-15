@@ -82,6 +82,10 @@ func debug_set_show_mines(enabled):
 	_render()
 
 
+func debug_cell_canvas_position(coord):
+	return board_view.debug_cell_canvas_position(coord)
+
+
 func debug_wait_until_idle():
 	while controller.is_busy:
 		await get_tree().process_frame

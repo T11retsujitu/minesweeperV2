@@ -151,6 +151,7 @@ func _finish_press():
 func _build_view():
 	background_panel = Panel.new()
 	background_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	background_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(background_panel)
 
 	preview_rect = ColorRect.new()

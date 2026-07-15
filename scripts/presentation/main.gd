@@ -56,6 +56,10 @@ func _run_debug_command(command):
 		battle_screen.debug_tap(_parse_coord(command.substr("tap:".length())))
 	elif command.begins_with("flag:"):
 		battle_screen.debug_flag(_parse_coord(command.substr("flag:".length())))
+	elif command.begins_with("click:"):
+		await _push_mouse_click(_parse_coord(command.substr("click:".length())), MOUSE_BUTTON_LEFT)
+	elif command.begins_with("rclick:"):
+		await _push_mouse_click(_parse_coord(command.substr("rclick:".length())), MOUSE_BUTTON_RIGHT)
 	elif command == "mode:fixed":
 		battle_screen.debug_set_mode("fixed")
 	elif command == "mode:random":
@@ -80,6 +84,25 @@ func _run_debug_command(command):
 		var frames = int(command.substr("wait:".length()))
 		for _frame_index in range(frames):
 			await get_tree().process_frame
+
+
+func _push_mouse_click(coord, button_index):
+	var canvas_position = battle_screen.debug_cell_canvas_position(coord)
+	var press = InputEventMouseButton.new()
+	press.button_index = button_index
+	press.pressed = true
+	press.position = canvas_position
+	press.global_position = canvas_position
+	get_viewport().push_input(press, true)
+	await get_tree().process_frame
+
+	var release = InputEventMouseButton.new()
+	release.button_index = button_index
+	release.pressed = false
+	release.position = canvas_position
+	release.global_position = canvas_position
+	get_viewport().push_input(release, true)
+	await get_tree().process_frame
 
 
 func _parse_coord(text):

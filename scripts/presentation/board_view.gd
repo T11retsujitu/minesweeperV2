@@ -69,6 +69,12 @@ func flash_explosion(center):
 	await get_tree().create_timer(0.42).timeout
 
 
+func debug_cell_canvas_position(coord):
+	if not cells.has(coord):
+		return Vector2.ZERO
+	return cells[coord].get_global_rect().get_center()
+
+
 func _build_grid():
 	var frame = PanelContainer.new()
 	frame.set_anchors_preset(Control.PRESET_FULL_RECT)
