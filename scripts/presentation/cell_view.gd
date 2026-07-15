@@ -4,6 +4,7 @@ signal tapped(coord)
 signal long_pressed(coord)
 
 const Balance = preload("res://scripts/config/game_balance.gd")
+const FxConfig = preload("res://scripts/presentation/fx_config.gd")
 
 var coord = Vector2i.ZERO
 var input_enabled = true
@@ -22,6 +23,7 @@ var mine_marker_label = null
 var preview_damage_label = null
 var enemy_badge = null
 var enemy_label = null
+var enemy_pulse_tween = null
 
 
 func _ready():
@@ -53,8 +55,10 @@ func set_display(cell_data, options):
 	flag_label.visible = flagged and not detonated
 	detonation_label.visible = detonated
 	mine_marker_label.visible = bool(options.get("debug_mine", false))
-	enemy_badge.visible = bool(options.get("enemy_visible", false))
-	enemy_label.visible = enemy_badge.visible
+	var enemy_visible = bool(options.get("enemy_visible", false))
+	enemy_badge.visible = enemy_visible
+	enemy_label.visible = enemy_visible
+	_update_enemy_badge(enemy_visible, int(options.get("enemy_countdown", 0)))
 
 	var previewed = bool(options.get("previewed", false))
 	preview_rect.visible = previewed
@@ -74,6 +78,17 @@ func flash(color, duration):
 	flash_rect.color = color
 	flash_rect.modulate = Color(1, 1, 1, 0.85)
 	var tween = create_tween()
+	tween.tween_property(flash_rect, "modulate:a", 0.0, duration)
+	tween.finished.connect(_on_flash_finished)
+
+
+func flash_attack_glow(duration):
+	flash_rect.visible = true
+	flash_rect.color = FxConfig.COLOR_ENEMY_ATTACK_GLOW_START
+	flash_rect.modulate = Color.WHITE
+	var tween = create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(flash_rect, "color", FxConfig.COLOR_ENEMY_ATTACK_GLOW_END, duration)
 	tween.tween_property(flash_rect, "modulate:a", 0.0, duration)
 	tween.finished.connect(_on_flash_finished)
 
@@ -195,26 +210,27 @@ func _build_view():
 	add_child(preview_damage_label)
 
 	enemy_badge = ColorRect.new()
-	enemy_badge.color = Color(0.83, 0.18, 0.24)
+	enemy_badge.color = FxConfig.COLOR_ENEMY_BADGE
 	enemy_badge.anchor_left = 1.0
 	enemy_badge.anchor_right = 1.0
-	enemy_badge.offset_left = -28
-	enemy_badge.offset_top = 6
-	enemy_badge.offset_right = -6
-	enemy_badge.offset_bottom = 28
+	enemy_badge.offset_left = -FxConfig.ENEMY_BADGE_MARGIN_RIGHT - FxConfig.ENEMY_BADGE_SIZE
+	enemy_badge.offset_top = FxConfig.ENEMY_BADGE_MARGIN_TOP
+	enemy_badge.offset_right = -FxConfig.ENEMY_BADGE_MARGIN_RIGHT
+	enemy_badge.offset_bottom = FxConfig.ENEMY_BADGE_MARGIN_TOP + FxConfig.ENEMY_BADGE_SIZE
 	enemy_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	enemy_badge.visible = false
 	add_child(enemy_badge)
 
-	enemy_label = _make_label(13, HORIZONTAL_ALIGNMENT_CENTER, VERTICAL_ALIGNMENT_CENTER)
-	enemy_label.text = "E"
+	enemy_label = _make_label(FxConfig.ENEMY_BADGE_FONT_SIZE, HORIZONTAL_ALIGNMENT_CENTER, VERTICAL_ALIGNMENT_CENTER)
 	enemy_label.add_theme_color_override("font_color", Color.WHITE)
+	enemy_label.add_theme_constant_override("outline_size", 2)
+	enemy_label.add_theme_color_override("font_outline_color", Color.BLACK)
 	enemy_label.anchor_left = 1.0
 	enemy_label.anchor_right = 1.0
-	enemy_label.offset_left = -28
-	enemy_label.offset_top = 6
-	enemy_label.offset_right = -6
-	enemy_label.offset_bottom = 28
+	enemy_label.offset_left = -FxConfig.ENEMY_BADGE_MARGIN_RIGHT - FxConfig.ENEMY_BADGE_SIZE
+	enemy_label.offset_top = FxConfig.ENEMY_BADGE_MARGIN_TOP
+	enemy_label.offset_right = -FxConfig.ENEMY_BADGE_MARGIN_RIGHT
+	enemy_label.offset_bottom = FxConfig.ENEMY_BADGE_MARGIN_TOP + FxConfig.ENEMY_BADGE_SIZE
 	enemy_label.visible = false
 	add_child(enemy_label)
 
@@ -232,6 +248,30 @@ func _make_label(font_size, horizontal_alignment, vertical_alignment):
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.add_theme_font_size_override("font_size", font_size)
 	return label
+
+
+func _update_enemy_badge(enemy_visible, countdown):
+	_stop_enemy_pulse()
+	if not enemy_visible:
+		enemy_label.text = ""
+		return
+	enemy_badge.color = FxConfig.COLOR_ENEMY_BADGE
+	enemy_label.text = str(countdown)
+	if countdown == 1:
+		enemy_badge.color = FxConfig.COLOR_ENEMY_BADGE_DANGER
+		enemy_label.text = "1!"
+		enemy_pulse_tween = create_tween()
+		enemy_pulse_tween.set_loops()
+		enemy_pulse_tween.tween_property(enemy_badge, "modulate:a", FxConfig.ENEMY_BADGE_PULSE_ALPHA, FxConfig.ENEMY_BADGE_PULSE_SEC)
+		enemy_pulse_tween.tween_property(enemy_badge, "modulate:a", 1.0, FxConfig.ENEMY_BADGE_PULSE_SEC)
+
+
+func _stop_enemy_pulse():
+	if enemy_pulse_tween != null:
+		enemy_pulse_tween.kill()
+		enemy_pulse_tween = null
+	if enemy_badge != null:
+		enemy_badge.modulate = Color.WHITE
 
 
 func _apply_background(revealed, flagged, detonated):

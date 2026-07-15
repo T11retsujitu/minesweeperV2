@@ -30,6 +30,7 @@ func update_from_snapshot(snapshot, debug_show_mines):
 		var previewed = preview_cells.has(coord)
 		var options = {
 			"enemy_visible": enemy_visible and coord == enemy_position,
+			"enemy_countdown": int(snapshot["enemy_countdown"]),
 			"debug_mine": debug_show_mines and cell_data["contains_mine"] and cell_data["reveal_state"] == "hidden",
 			"previewed": previewed,
 			"preview_center": preview_center != null and coord == preview_center,
@@ -73,6 +74,12 @@ func flash_explosion(center):
 			color = Color(1.0, 0.24, 0.10, 0.88)
 		cells[coord].flash(color, FxConfig.EXPLOSION_FLASH_SEC)
 	await get_tree().create_timer(FxConfig.EXPLOSION_FLASH_SEC).timeout
+
+
+func play_enemy_attack_glow(coord):
+	if cells.has(coord):
+		cells[coord].flash_attack_glow(FxConfig.ENEMY_ATTACK_GLOW_SEC)
+	await get_tree().create_timer(FxConfig.ENEMY_ATTACK_GLOW_SEC).timeout
 
 
 func debug_cell_canvas_position(coord):
