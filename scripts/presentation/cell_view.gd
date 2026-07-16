@@ -16,6 +16,8 @@ var press_elapsed = 0.0
 var background_panel = null
 var highlight_rect = null
 var overlay_draw = null
+var reveal_pop_rect = null
+var flag_pop_rect = null
 var preview_rect = null
 var player_marker_outline = null
 var player_marker_fill = null
@@ -27,6 +29,8 @@ var preview_damage_label = null
 var enemy_badge = null
 var enemy_label = null
 var enemy_pulse_tween = null
+var reveal_pop_tween = null
+var flag_pop_tween = null
 var highlight_border_visible = false
 var highlight_border_color = FxConfig.COLOR_HIGHLIGHT_MOVABLE_BORDER
 
@@ -114,13 +118,66 @@ func flash_attack_glow(duration):
 	tween.finished.connect(_on_flash_finished)
 
 
+func play_reveal_pop():
+	if reveal_pop_tween != null:
+		reveal_pop_tween.kill()
+		reveal_pop_tween = null
+	reveal_pop_rect.visible = true
+	reveal_pop_rect.color = FxConfig.COLOR_REVEAL_POP
+	reveal_pop_rect.scale = Vector2.ONE * FxConfig.REVEAL_POP_START_SCALE
+	reveal_pop_rect.modulate = Color.WHITE
+	reveal_pop_tween = create_tween()
+	reveal_pop_tween.set_parallel(true)
+	reveal_pop_tween.tween_property(reveal_pop_rect, "scale", Vector2.ONE, FxConfig.REVEAL_POP_SEC).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	reveal_pop_tween.tween_property(reveal_pop_rect, "modulate:a", 0.0, FxConfig.REVEAL_POP_SEC)
+	reveal_pop_tween.finished.connect(_on_reveal_pop_finished)
+
+
+func play_flag_pop(flagged):
+	if flag_pop_tween != null:
+		flag_pop_tween.kill()
+		flag_pop_tween = null
+	overlay_draw.scale = Vector2.ONE
+	overlay_draw.modulate = Color.WHITE
+	flag_pop_rect.visible = true
+	flag_pop_rect.color = _flag_pop_color(flagged)
+	flag_pop_rect.modulate = Color.WHITE
+	flag_pop_rect.scale = Vector2.ONE
+	if flagged:
+		flag_pop_rect.scale = Vector2.ONE * FxConfig.FLAG_POP_START_SCALE
+		overlay_draw.scale = Vector2.ONE * FxConfig.FLAG_POP_START_SCALE
+	flag_pop_tween = create_tween()
+	flag_pop_tween.set_parallel(true)
+	flag_pop_tween.tween_property(flag_pop_rect, "scale", Vector2.ONE, FxConfig.FLAG_POP_SEC).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	flag_pop_tween.tween_property(flag_pop_rect, "modulate:a", 0.0, FxConfig.FLAG_POP_SEC)
+	flag_pop_tween.tween_property(overlay_draw, "scale", Vector2.ONE, FxConfig.FLAG_POP_SEC).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	flag_pop_tween.finished.connect(_on_flag_pop_finished)
+
+
 func _on_flash_finished():
 	flash_rect.visible = false
+
+
+func _on_reveal_pop_finished():
+	reveal_pop_tween = null
+	reveal_pop_rect.visible = false
+	reveal_pop_rect.modulate = Color.WHITE
+	reveal_pop_rect.scale = Vector2.ONE
+
+
+func _on_flag_pop_finished():
+	flag_pop_tween = null
+	flag_pop_rect.visible = false
+	flag_pop_rect.modulate = Color.WHITE
+	flag_pop_rect.scale = Vector2.ONE
+	overlay_draw.scale = Vector2.ONE
+	overlay_draw.modulate = Color.WHITE
 
 
 func _notification(what):
 	if what == NOTIFICATION_RESIZED:
 		_layout_player_marker()
+		_layout_feedback_overlays()
 		if overlay_draw != null:
 			overlay_draw.queue_redraw()
 
@@ -236,6 +293,21 @@ func _build_view():
 	overlay_draw.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay_draw.draw.connect(_on_overlay_draw)
 	add_child(overlay_draw)
+
+	reveal_pop_rect = ColorRect.new()
+	reveal_pop_rect.color = FxConfig.COLOR_REVEAL_POP
+	reveal_pop_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	reveal_pop_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	reveal_pop_rect.visible = false
+	add_child(reveal_pop_rect)
+
+	flag_pop_rect = ColorRect.new()
+	flag_pop_rect.color = FxConfig.COLOR_FLAG_POP
+	flag_pop_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	flag_pop_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	flag_pop_rect.visible = false
+	add_child(flag_pop_rect)
+	_layout_feedback_overlays()
 
 	preview_rect = ColorRect.new()
 	preview_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -381,6 +453,25 @@ func _heat_color(adjacent_count):
 	var max_index = FxConfig.COLOR_HEAT_LEVELS.size() - 1
 	var index = int(clamp(adjacent_count, 0, max_index))
 	return FxConfig.COLOR_HEAT_LEVELS[index]
+
+
+func _flag_pop_color(flagged):
+	var color = FxConfig.COLOR_FLAG_POP
+	if not flagged:
+		color.a *= 0.45
+	return color
+
+
+func _layout_feedback_overlays():
+	var cell_size = size
+	if cell_size == Vector2.ZERO:
+		cell_size = custom_minimum_size
+	if overlay_draw != null:
+		overlay_draw.pivot_offset = cell_size * 0.5
+	if reveal_pop_rect != null:
+		reveal_pop_rect.pivot_offset = cell_size * 0.5
+	if flag_pop_rect != null:
+		flag_pop_rect.pivot_offset = cell_size * 0.5
 
 
 func _layout_player_marker():

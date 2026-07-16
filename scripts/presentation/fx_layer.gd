@@ -83,7 +83,7 @@ func hit_stop():
 	Engine.time_scale = 1.0
 
 
-func spawn_explosion_particles(global_pos, is_center):
+func spawn_explosion_particles(global_pos, is_center, color_override = null):
 	var particles = CPUParticles2D.new()
 	particles.one_shot = true
 	particles.amount = FxConfig.EXPLOSION_PARTICLE_CENTER_COUNT
@@ -102,6 +102,8 @@ func spawn_explosion_particles(global_pos, is_center):
 	particles.color = FxConfig.COLOR_DAMAGE_MINE
 	if is_center:
 		particles.color = FxConfig.COLOR_DAMAGE_DEALT
+	if color_override != null:
+		particles.color = color_override
 	particles.position = get_global_transform().affine_inverse() * global_pos
 	particles.finished.connect(particles.queue_free)
 	add_child(particles)

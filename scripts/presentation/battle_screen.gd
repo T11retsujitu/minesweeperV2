@@ -140,6 +140,7 @@ func _on_state_reset(_state):
 
 func _handle_events(events):
 	var terminal_title = _terminal_title_from_events(events)
+	var flag_pop_events = []
 	for event in events:
 		var event_type = event.get("type", "")
 		if event_type == "detonation_preview":
@@ -149,9 +150,13 @@ func _handle_events(events):
 		elif event_type == "state_reset":
 			_hide_preview()
 			_hide_terminal()
+		elif event_type == "flag_toggled":
+			flag_pop_events.append(event)
 
 	_update_status_from_events(events)
 	_render()
+	for event in flag_pop_events:
+		board_view.play_flag_pop(event["cell"], bool(event.get("flagged", false)))
 	if controller.is_busy:
 		await _play_event_feedback(events)
 		controller.notify_effects_done()

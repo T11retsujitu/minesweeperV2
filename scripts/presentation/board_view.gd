@@ -68,6 +68,28 @@ func clear_preview():
 	preview_cells = []
 
 
+func play_reveal_cascade(revealed_cells, trigger):
+	var waves = _reveal_waves(revealed_cells, trigger)
+	if waves.is_empty():
+		return
+
+	var wave_gap = _cascade_wave_gap(waves.size())
+	for wave_index in range(waves.size()):
+		for coord in waves[wave_index]:
+			if cells.has(coord):
+				cells[coord].play_reveal_pop()
+		if wave_index < waves.size() - 1 and wave_gap > 0.0:
+			await get_tree().create_timer(wave_gap).timeout
+
+	if waves.size() == 1:
+		await get_tree().create_timer(min(FxConfig.REVEAL_POP_SEC, FxConfig.FLOOD_CASCADE_MAX_SEC)).timeout
+
+
+func play_flag_pop(coord, flagged):
+	if cells.has(coord):
+		cells[coord].play_flag_pop(flagged)
+
+
 func play_explosion(center, accidental):
 	if not cells.has(center):
 		await get_tree().process_frame
@@ -138,6 +160,31 @@ func debug_cell_canvas_position(coord):
 	if not cells.has(coord):
 		return Vector2.ZERO
 	return cells[coord].get_global_rect().get_center()
+
+
+func _reveal_waves(revealed_cells, trigger):
+	var groups = {}
+	for coord in revealed_cells:
+		if not cells.has(coord):
+			continue
+		var distance = max(abs(coord.x - trigger.x), abs(coord.y - trigger.y))
+		if not groups.has(distance):
+			groups[distance] = []
+		groups[distance].append(coord)
+
+	var distances = groups.keys()
+	distances.sort()
+	var waves = []
+	for distance in distances:
+		waves.append(groups[distance])
+	return waves
+
+
+func _cascade_wave_gap(wave_count):
+	if wave_count <= 1:
+		return 0.0
+	var gap_count = wave_count - 1
+	return min(FxConfig.FLOOD_WAVE_SEC, FxConfig.FLOOD_CASCADE_MAX_SEC / float(gap_count))
 
 
 func _build_grid():

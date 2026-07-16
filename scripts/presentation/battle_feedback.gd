@@ -25,6 +25,7 @@ func setup(refs: Dictionary):
 func play_events(events, snapshot):
 	var waited = false
 	var accidental_mine_cell = null
+	var skip_reveal_cascade = _has_accidental_mine_explosion(events)
 	var consumed_enemy_attack_damage_indexes = {}
 	var terminal_title = _terminal_title_from_events(events)
 	var pos = snapshot["enemy_position"]
@@ -43,6 +44,9 @@ func play_events(events, snapshot):
 			if accidental:
 				accidental_mine_cell = event["cell"]
 			await board_view.play_explosion(event["cell"], accidental)
+			waited = true
+		elif event_type == "cells_revealed" and not skip_reveal_cascade:
+			await board_view.play_reveal_cascade(event.get("cells", []), event.get("trigger", Vector2i.ZERO))
 			waited = true
 		elif event_type == "player_moved":
 			await _play_player_move_feedback(event["from"], event["to"])
@@ -70,6 +74,9 @@ func play_events(events, snapshot):
 				await _play_enemy_attack_chain(events[damage_index], snapshot)
 			else:
 				await board_view.get_tree().process_frame
+			waited = true
+		elif event_type == "enemy_died":
+			await _play_enemy_down_feedback()
 			waited = true
 	if terminal_title != "":
 		await board_view.get_tree().create_timer(FxConfig.TERMINAL_DELAY_SEC).timeout
@@ -151,6 +158,22 @@ func _play_enemy_attack_chain(damage_event, snapshot):
 	await player_bar.animate_to(int(damage_event["after"]))
 
 
+func _play_enemy_down_feedback():
+	var elapsed = 0.0
+	if fx_layer != null and last_enemy_position != null:
+		var enemy_pos = board_view.debug_cell_canvas_position(last_enemy_position)
+		fx_layer.spawn_explosion_particles(enemy_pos, true, FxConfig.COLOR_ENEMY_DOWN)
+		fx_layer.spawn_damage_float(enemy_pos, "ENEMY DOWN!", FxConfig.COLOR_ENEMY_DOWN)
+	if fx_layer != null:
+		await fx_layer.hit_stop()
+		elapsed += FxConfig.HIT_STOP_SEC
+		await fx_layer.shake(0.65)
+		elapsed += FxConfig.SHAKE_DURATION
+	var remaining = max(0.0, FxConfig.ENEMY_DOWN_BLOCK_SEC - elapsed)
+	if remaining > 0.0:
+		await board_view.get_tree().create_timer(remaining).timeout
+
+
 func _player_feedback_position(snapshot):
 	if str(snapshot.get("ruleset", "")) == "phase2_avatar" and snapshot.has("player_position"):
 		var cell_pos = board_view.debug_cell_canvas_position(snapshot["player_position"])
@@ -170,6 +193,13 @@ func _enemy_attack_damage_index(events, index):
 	if int(event.get("amount", 0)) <= 0:
 		return -1
 	return index
+
+
+func _has_accidental_mine_explosion(events):
+	for event in events:
+		if event.get("type", "") == "mine_exploded" and bool(event.get("accidental", false)):
+			return true
+	return false
 
 
 func _terminal_title_from_events(events):
