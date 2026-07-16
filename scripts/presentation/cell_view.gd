@@ -14,6 +14,7 @@ var long_press_sent = false
 var press_elapsed = 0.0
 
 var background_panel = null
+var territory_rect = null
 var highlight_rect = null
 var overlay_draw = null
 var reveal_pop_rect = null
@@ -57,6 +58,7 @@ func set_display(cell_data, options):
 	flagged_display = flagged and not detonated
 
 	_apply_background(revealed, flagged, detonated, adjacent_count)
+	territory_rect.visible = bool(options.get("territory", false))
 	number_label.text = ""
 	if revealed and adjacent_count > 0 and not detonated:
 		number_label.text = str(adjacent_count)
@@ -281,6 +283,13 @@ func _build_view():
 	background_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
 	background_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(background_panel)
+
+	territory_rect = ColorRect.new()
+	territory_rect.color = FxConfig.COLOR_TERRITORY
+	territory_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	territory_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	territory_rect.visible = false
+	add_child(territory_rect)
 
 	highlight_rect = ColorRect.new()
 	highlight_rect.set_anchors_preset(Control.PRESET_FULL_RECT)

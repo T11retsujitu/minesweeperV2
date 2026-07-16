@@ -184,6 +184,8 @@ func _render():
 		enemy_bar.animate_to(int(snapshot["enemy_hp"]))
 	if _is_recovery_snapshot(snapshot):
 		enemy_countdown_label.text = "Countdown: —(stopped)"
+	elif _is_countdown_paused_snapshot(snapshot):
+		enemy_countdown_label.text = "Countdown: %d (paused)" % int(snapshot["enemy_countdown"])
 	else:
 		enemy_countdown_label.text = "Enemy countdown: %d" % int(snapshot["enemy_countdown"])
 	enemy_intent_label.text = _enemy_intent_text(snapshot)
@@ -230,6 +232,10 @@ func _update_mine_counters(snapshot):
 
 func _is_recovery_snapshot(snapshot):
 	return str(snapshot.get("phase", "")) == "recovery"
+
+
+func _is_countdown_paused_snapshot(snapshot):
+	return int(snapshot.get("enemy_hp", 0)) > 0 and not bool(snapshot.get("player_in_territory", true))
 
 
 func _is_overlay_blocking_board():

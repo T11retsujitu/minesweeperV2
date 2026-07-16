@@ -2,6 +2,7 @@ extends RefCounted
 
 const BoardModel = preload("res://scripts/domain/board_model.gd")
 const EnemyModel = preload("res://scripts/domain/enemy_model.gd")
+const Balance = preload("res://scripts/config/game_balance.gd")
 const PlayerModel = preload("res://scripts/domain/player_model.gd")
 
 const MODE_FIXED = "fixed"
@@ -100,6 +101,28 @@ func avatar_revealable_cells():
 	return result
 
 
+func territory_cells():
+	var result = []
+	if board == null or enemy == null:
+		return result
+	for y in range(enemy.position.y - Balance.TERRITORY_RADIUS, enemy.position.y + Balance.TERRITORY_RADIUS + 1):
+		for x in range(enemy.position.x - Balance.TERRITORY_RADIUS, enemy.position.x + Balance.TERRITORY_RADIUS + 1):
+			var coord = Vector2i(x, y)
+			if board.is_in_bounds(coord):
+				result.append(coord)
+	return result
+
+
+func is_player_in_territory():
+	if ruleset != RULESET_AVATAR:
+		return true
+	if enemy == null or enemy.is_dead() or player == null:
+		return false
+	var dx = abs(player.position.x - enemy.position.x)
+	var dy = abs(player.position.y - enemy.position.y)
+	return max(dx, dy) <= Balance.TERRITORY_RADIUS
+
+
 func _is_adjacent_to_player(cell):
 	if player == null:
 		return false
@@ -111,10 +134,13 @@ func _is_adjacent_to_player(cell):
 func to_snapshot():
 	var board_cells = []
 	var safe_counts = {"total": 0, "revealed": 0}
+	var visible_territory_cells = []
 	if board != null:
 		for cell in board.get_all_cells():
 			board_cells.append(cell.to_dictionary())
 		safe_counts = board.safe_cell_counts()
+	if ruleset == RULESET_AVATAR and enemy != null and not enemy.is_dead():
+		visible_territory_cells = territory_cells()
 	return {
 		"turn_count": turn_count,
 		"seed": seed,
@@ -132,6 +158,8 @@ func to_snapshot():
 		"accidental_mine_count": accidental_mine_count,
 		"safe_cells_total": safe_counts["total"],
 		"safe_cells_revealed": safe_counts["revealed"],
+		"territory_cells": visible_territory_cells,
+		"player_in_territory": is_player_in_territory(),
 		"ruleset": ruleset,
 		"player_position": player.position if player != null else Vector2i.ZERO,
 		"movable_cells": avatar_movable_cells() if ruleset == RULESET_AVATAR else [],

@@ -27,6 +27,7 @@ func update_from_snapshot(snapshot, debug_show_mines):
 	var player_position = snapshot.get("player_position", Vector2i.ZERO)
 	var movable_cells = snapshot.get("movable_cells", [])
 	var revealable_cells = snapshot.get("revealable_cells", [])
+	var territory_cells = snapshot.get("territory_cells", [])
 	for cell_data in snapshot["cells"]:
 		var coord = cell_data["coord"]
 		if not cells.has(coord):
@@ -42,6 +43,7 @@ func update_from_snapshot(snapshot, debug_show_mines):
 			"player_here": is_avatar and coord == player_position,
 			"movable": is_avatar and movable_cells.has(coord),
 			"revealable": is_avatar and revealable_cells.has(coord),
+			"territory": territory_cells.has(coord),
 		}
 		cells[coord].set_display(cell_data, options)
 

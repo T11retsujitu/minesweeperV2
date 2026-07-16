@@ -17,7 +17,7 @@
 |------|-----|
 | Godot (WSL) | `~/.local/bin/godot`(4.4.1.stable.official)|
 | 実行環境 | WSL2 Ubuntu + WSLg(DISPLAY=:0。ウィンドウ実行・スクショ検証可)|
-| テスト | `~/.local/bin/godot --headless --path . --script res://tests/run_tests.gd` → **501 passed / exit 0 が正常**(旧ルール230+アバター200+回収フェーズ71)|
+| テスト | `~/.local/bin/godot --headless --path . --script res://tests/run_tests.gd` → **564 passed / exit 0 が正常**(旧ルール230+アバター200+回収71+縄張り63)|
 | Windowsテストプレイ | `C:\Users\a\minesweeperV2-play\`(プレイ用コピー)+ `C:\Users\a\Godot\Godot_v4.4.1-stable_win64.exe` + デスクトップ `Play_Minesweeper.bat` |
 | Windowsコピー同期 | `rsync -a --delete --exclude='.git' --exclude='.godot' --exclude='*.md' --exclude='docs' ~/src/minesweeperV2/ /mnt/c/Users/a/minesweeperV2-play/` — **コード変更のたびに必要(自動同期なし)** |
 | Git | ブランチ main のみ。remote(origin)は空。**push 禁止**。マイルストーン毎にローカルコミット、`Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>` 付与 |
@@ -36,7 +36,8 @@
 - **UX改良 M1b 動的フィードバック(§7.5-4、2026-07-16)**: 開放ポップ(cell_view.play_reveal_pop、非ブロッキング)/ フラッドカスケード(board_view.play_reveal_cascade、Chebyshev距離の波・総ブロックFLOOD_CASCADE_MAX_SEC=0.45クランプ・誤爆時スキップ)/ フラグトグル演出(feedbackパス外・非ブロッキング=is_busy不使用のflag_toggled設計を維持)/ 敵撃破祝祭(金パーティクル+ENEMY DOWN!フロート+小ヒットストップ+シェイク、~0.5sブロック)= **presentation層のみ・テスト430不変・勝利ライン完走+retry連打ハング無しをWSLgで検証**
 - **UX改良 M2a クリア二層化 domain/application(§7.3、2026-07-16)**: avatar のみ敵HP0→ `combat_won` + PHASE_RECOVERY(回収フェーズ: 敵ステップ全スキップ・誤爆死は通常敗北)→ 全安全セル開放で `perfect_clear + victory{perfect:true}` / FINISH(ターン非消費)で `victory{perfect:false}`。同時死亡はD6勝利優先でrecovery非経由。死体セル通行可(D29)。snapshot に phase/accidental_mine_count/safe_cells_total/safe_cells_revealed 追加。**テスト501件**(回収到達性はグリーディウォーカーで証明)。phase1 は完全凍結(テストdiffゼロ)。設計判断 D28〜D30
 - **UX改良 M2b クリア二層化 presentation(2026-07-16)**: combat_won トースト(非ブロッキング2秒)/ recovery 中 HUD(Countdown stopped・Enemy: defeated・Board n/N・Finishボタン)/ リザルト画面(VICTORY/PERFECT CLEAR/DEFEAT+Turns/HP/Board%/Misfires 統計、Perfect時金演出)/ main.gd に `finish` デバッグコマンド = **presentation層のみ・テスト501不変・WSLgスクショ検証(recovery HUD/リザルト統計)**
-- **ドキュメント**: README / implementation-plan / architecture / decisions(D1〜D30)/ playtest-checklist / pv-vision-roadmap 完備
+- **UX改良 M3a 縄張りルール(§7.4、2026-07-16)**: `TERRITORY_RADIUS=2`(game_balance)。avatar のみ、アクション解決後のプレイヤー位置が縄張り外ならカウントダウン凍結(`countdown_paused`)・敵攻撃なし。盤面に縄張りティント常時表示(敵死亡で消灯)+HUD「Countdown: N (paused)」。**test_avatar_walkthrough 無変更のまま緑=回帰証明。テスト564件**。設計判断 D31
+- **ドキュメント**: README / implementation-plan / architecture / decisions(D1〜D31)/ playtest-checklist / pv-vision-roadmap 完備
 
 ## 4. できていない部分
 

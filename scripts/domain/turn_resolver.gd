@@ -59,19 +59,23 @@ static func resolve(state, action):
 	if state.enemy.is_dead():
 		return _resolve_enemy_death(state, events)
 
-	var countdown_change = state.enemy.decrement_countdown()
-	events.append(_event("countdown_changed", countdown_change))
-	state.record_log("Enemy countdown: %d -> %d" % [countdown_change["before"], countdown_change["after"]])
+	if state.is_player_in_territory():
+		var countdown_change = state.enemy.decrement_countdown()
+		events.append(_event("countdown_changed", countdown_change))
+		state.record_log("Enemy countdown: %d -> %d" % [countdown_change["before"], countdown_change["after"]])
 
-	if state.enemy.countdown <= 0:
-		var player_damage = state.player.apply_damage(state.enemy.attack_damage)
-		events.append(_event("enemy_attacked", {"damage": state.enemy.attack_damage}))
-		events.append(_event("player_damaged", _with_source(player_damage, "enemy_attack")))
-		state.record_log("Enemy attack: %d" % state.enemy.attack_damage)
-		state.record_log("Player damage: %d, HP=%d" % [player_damage["amount"], player_damage["after"]])
-		var reset_change = state.enemy.reset_countdown()
-		events.append(_event("countdown_changed", reset_change))
-		state.record_log("Enemy countdown: %d -> %d" % [reset_change["before"], reset_change["after"]])
+		if state.enemy.countdown <= 0:
+			var player_damage = state.player.apply_damage(state.enemy.attack_damage)
+			events.append(_event("enemy_attacked", {"damage": state.enemy.attack_damage}))
+			events.append(_event("player_damaged", _with_source(player_damage, "enemy_attack")))
+			state.record_log("Enemy attack: %d" % state.enemy.attack_damage)
+			state.record_log("Player damage: %d, HP=%d" % [player_damage["amount"], player_damage["after"]])
+			var reset_change = state.enemy.reset_countdown()
+			events.append(_event("countdown_changed", reset_change))
+			state.record_log("Enemy countdown: %d -> %d" % [reset_change["before"], reset_change["after"]])
+	else:
+		events.append(_event("countdown_paused", {"countdown": state.enemy.countdown}))
+		state.record_log("Enemy countdown paused (out of territory)")
 
 	if state.player.is_dead():
 		state.phase = CombatState.PHASE_DEFEAT
