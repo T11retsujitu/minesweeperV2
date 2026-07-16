@@ -53,9 +53,10 @@ func _test_avatar_victory_line(t):
 
 	var t7 = _flag_and_detonate(state, Vector2i(0, 3))
 	_assert_state(t, state, 0, Balance.ENEMY_COUNTDOWN, 6, Vector2i(2, 4), 7, "avatar victory T7")
-	t.equal(_event_types(t7), ["mine_exploded", "enemy_damaged", "enemy_died", "victory"], "avatar victory T7 events")
-	t.equal(state.phase, CombatState.PHASE_VICTORY, "avatar victory T7 phase")
+	t.equal(_event_types(t7), ["mine_exploded", "enemy_damaged", "enemy_died", "combat_won"], "avatar victory T7 events")
+	t.equal(state.phase, CombatState.PHASE_RECOVERY, "avatar victory T7 phase")
 	t.check(not _has_event(t7, "countdown_changed"), "avatar victory T7 skips countdown")
+	t.check(not _has_event(t7, "victory"), "avatar victory T7 does not emit final victory yet")
 	t.check(not _has_event(t7, "defeat"), "avatar victory T7 no defeat")
 
 

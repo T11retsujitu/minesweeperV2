@@ -89,6 +89,28 @@ func mine_count():
 	return get_mine_coords().size()
 
 
+func safe_cell_counts():
+	var total = 0
+	var revealed = 0
+	for cell in get_all_cells():
+		if cell.contains_mine:
+			continue
+		total += 1
+		if cell.is_revealed():
+			revealed += 1
+	return {
+		"total": total,
+		"revealed": revealed,
+	}
+
+
+func all_safe_cells_revealed():
+	for cell in get_all_cells():
+		if not cell.contains_mine and not cell.is_revealed():
+			return false
+	return true
+
+
 func toggle_flag(coord):
 	var cell = get_cell(coord)
 	if cell == null:

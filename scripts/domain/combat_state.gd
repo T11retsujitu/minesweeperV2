@@ -9,6 +9,7 @@ const MODE_RANDOM = "random"
 const RULESET_PHASE1 = "phase1"
 const RULESET_AVATAR = "phase2_avatar"
 const PHASE_PLAYING = "playing"
+const PHASE_RECOVERY = "recovery"
 const PHASE_VICTORY = "victory"
 const PHASE_DEFEAT = "defeat"
 
@@ -25,6 +26,7 @@ var action_log = []
 var used_fixture_fallback = false
 var first_reveal_done = false
 var last_first_reveal_relocation = {}
+var accidental_mine_count = 0
 
 
 func _init(p_board = null, p_enemy = null, p_player = null, p_seed = 0, p_mode = MODE_FIXED):
@@ -38,6 +40,10 @@ func _init(p_board = null, p_enemy = null, p_player = null, p_seed = 0, p_mode =
 
 func is_playing():
 	return phase == PHASE_PLAYING
+
+
+func is_active():
+	return phase == PHASE_PLAYING or phase == PHASE_RECOVERY
 
 
 func is_terminal():
@@ -57,7 +63,7 @@ func seed_label():
 func avatar_can_move_to(cell):
 	if ruleset != RULESET_AVATAR or not _is_adjacent_to_player(cell):
 		return false
-	if enemy != null and cell == enemy.position:
+	if enemy != null and not enemy.is_dead() and cell == enemy.position:
 		return false
 	var target = board.get_cell(cell) if board != null else null
 	return target != null and target.is_revealed() and not target.is_detonated()
@@ -104,9 +110,11 @@ func _is_adjacent_to_player(cell):
 
 func to_snapshot():
 	var board_cells = []
+	var safe_counts = {"total": 0, "revealed": 0}
 	if board != null:
 		for cell in board.get_all_cells():
 			board_cells.append(cell.to_dictionary())
+		safe_counts = board.safe_cell_counts()
 	return {
 		"turn_count": turn_count,
 		"seed": seed,
@@ -121,6 +129,9 @@ func to_snapshot():
 		"action_log": action_log.duplicate(),
 		"used_fixture_fallback": used_fixture_fallback,
 		"first_reveal_done": first_reveal_done,
+		"accidental_mine_count": accidental_mine_count,
+		"safe_cells_total": safe_counts["total"],
+		"safe_cells_revealed": safe_counts["revealed"],
 		"ruleset": ruleset,
 		"player_position": player.position if player != null else Vector2i.ZERO,
 		"movable_cells": avatar_movable_cells() if ruleset == RULESET_AVATAR else [],

@@ -6,16 +6,22 @@ const CombatState = preload("res://scripts/domain/combat_state.gd")
 const ACTION_REVEAL = "REVEAL"
 const ACTION_DETONATE = "DETONATE"
 const ACTION_MOVE = "MOVE"
+const ACTION_FINISH = "FINISH"
 
 
 static func resolve(state, action):
 	var events = []
-	if state == null or not state.is_playing():
+	if state == null or not state.is_active():
 		return [_event("turn_rejected", {"reason": "state_not_playing"})]
-	if not action.has("type") or not action.has("cell"):
+	if not action.has("type"):
 		return [_event("turn_rejected", {"reason": "invalid_action"})]
 
 	var action_type = action["type"]
+	if action_type == ACTION_FINISH:
+		return _resolve_finish(state)
+	if not action.has("cell"):
+		return [_event("turn_rejected", {"reason": "invalid_action"})]
+
 	var cell = action["cell"]
 	var result = null
 	if action_type == ACTION_MOVE:
@@ -47,12 +53,11 @@ static func resolve(state, action):
 		_append_action_events(state, events, action_type, result)
 		_apply_explosion_damage(state, events, action_type, result)
 
+	if state.phase == CombatState.PHASE_RECOVERY:
+		return _resolve_recovery_turn(state, events)
+
 	if state.enemy.is_dead():
-		events.append(_event("enemy_died", {"enemy_hp": state.enemy.hp}))
-		state.phase = CombatState.PHASE_VICTORY
-		events.append(_event("victory", {"turn_count": state.turn_count}))
-		state.record_log("Victory")
-		return events
+		return _resolve_enemy_death(state, events)
 
 	var countdown_change = state.enemy.decrement_countdown()
 	events.append(_event("countdown_changed", countdown_change))
@@ -76,6 +81,53 @@ static func resolve(state, action):
 	return events
 
 
+static func _resolve_finish(state):
+	if state.phase != CombatState.PHASE_RECOVERY:
+		return [_event("turn_rejected", {"reason": "finish_not_available"})]
+	state.phase = CombatState.PHASE_VICTORY
+	state.record_log("Victory")
+	return [_event("victory", {"turn_count": state.turn_count, "perfect": false})]
+
+
+static func _resolve_enemy_death(state, events):
+	events.append(_event("enemy_died", {"enemy_hp": state.enemy.hp}))
+	if state.ruleset != CombatState.RULESET_AVATAR:
+		state.phase = CombatState.PHASE_VICTORY
+		events.append(_event("victory", {"turn_count": state.turn_count}))
+		state.record_log("Victory")
+		return events
+
+	if state.player.is_dead():
+		state.phase = CombatState.PHASE_VICTORY
+		events.append(_event("victory", {"turn_count": state.turn_count, "perfect": false}))
+		state.record_log("Victory")
+		return events
+
+	state.phase = CombatState.PHASE_RECOVERY
+	events.append(_event("combat_won", {"turn_count": state.turn_count}))
+	state.record_log("Combat won")
+	return _resolve_recovery_perfect_clear(state, events)
+
+
+static func _resolve_recovery_turn(state, events):
+	if state.player.is_dead():
+		state.phase = CombatState.PHASE_DEFEAT
+		events.append(_event("defeat", {"turn_count": state.turn_count}))
+		state.record_log("Defeat")
+		return events
+	return _resolve_recovery_perfect_clear(state, events)
+
+
+static func _resolve_recovery_perfect_clear(state, events):
+	if state.board.all_safe_cells_revealed():
+		events.append(_event("perfect_clear", {"turn_count": state.turn_count}))
+		state.phase = CombatState.PHASE_VICTORY
+		events.append(_event("victory", {"turn_count": state.turn_count, "perfect": true}))
+		state.record_log("Perfect Clear")
+		state.record_log("Victory")
+	return events
+
+
 static func _append_action_events(state, events, action_type, result):
 	var coord = result["cell"]
 	if action_type == ACTION_REVEAL and result["kind"] == "safe":
@@ -85,6 +137,7 @@ static func _append_action_events(state, events, action_type, result):
 			% [state.turn_count, coord.x, coord.y, result["adjacent"]]
 		)
 	elif action_type == ACTION_REVEAL and result["kind"] == "accidental_mine":
+		state.accidental_mine_count += 1
 		events.append(_event("cells_revealed", {"cells": result["cells_revealed"], "trigger": coord}))
 		events.append(_event("mine_exploded", {"cell": coord, "accidental": true}))
 		state.record_log("Turn %d: reveal (%d, %d) -> accidental mine" % [state.turn_count, coord.x, coord.y])
@@ -104,12 +157,14 @@ static func _apply_explosion_damage(state, events, action_type, result):
 		return
 
 	var coord = result["cell"]
-	var enemy_damage = state.board.explosion_damage_at(coord, state.enemy.position)
-	if enemy_damage > 0:
-		var enemy_damage_result = state.enemy.apply_damage(enemy_damage)
-		events.append(_event("enemy_damaged", enemy_damage_result))
-	else:
-		events.append(_event("enemy_damaged", {"before": state.enemy.hp, "after": state.enemy.hp, "amount": 0}))
+	var enemy_damage = 0
+	if state.phase != CombatState.PHASE_RECOVERY:
+		enemy_damage = state.board.explosion_damage_at(coord, state.enemy.position)
+		if enemy_damage > 0:
+			var enemy_damage_result = state.enemy.apply_damage(enemy_damage)
+			events.append(_event("enemy_damaged", enemy_damage_result))
+		else:
+			events.append(_event("enemy_damaged", {"before": state.enemy.hp, "after": state.enemy.hp, "amount": 0}))
 
 	if action_type == ACTION_DETONATE:
 		state.record_log("Turn %d: detonate (%d, %d) -> enemy damage=%d" % [state.turn_count, coord.x, coord.y, enemy_damage])

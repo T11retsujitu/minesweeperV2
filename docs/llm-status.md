@@ -17,7 +17,7 @@
 |------|-----|
 | Godot (WSL) | `~/.local/bin/godot`(4.4.1.stable.official)|
 | 実行環境 | WSL2 Ubuntu + WSLg(DISPLAY=:0。ウィンドウ実行・スクショ検証可)|
-| テスト | `~/.local/bin/godot --headless --path . --script res://tests/run_tests.gd` → **430 passed / exit 0 が正常**(旧ルール230+アバター200)|
+| テスト | `~/.local/bin/godot --headless --path . --script res://tests/run_tests.gd` → **501 passed / exit 0 が正常**(旧ルール230+アバター200+回収フェーズ71)|
 | Windowsテストプレイ | `C:\Users\a\minesweeperV2-play\`(プレイ用コピー)+ `C:\Users\a\Godot\Godot_v4.4.1-stable_win64.exe` + デスクトップ `Play_Minesweeper.bat` |
 | Windowsコピー同期 | `rsync -a --delete --exclude='.git' --exclude='.godot' --exclude='*.md' --exclude='docs' ~/src/minesweeperV2/ /mnt/c/Users/a/minesweeperV2-play/` — **コード変更のたびに必要(自動同期なし)** |
 | Git | ブランチ main のみ。remote(origin)は空。**push 禁止**。マイルストーン毎にローカルコミット、`Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>` 付与 |
@@ -34,7 +34,8 @@
 - **盤上プレイヤーアバター(Phase 2 第一弾 = pv-vision-roadmap Step 4 の核心構図)**: ruleset="phase2_avatar" で移動して開放モデルを実装。MOVE(8近傍の開放済みセルへ、1ターン)/ REVEAL(プレイヤー8近傍のみ、フラッド無制限)/ DETONATE遠隔+対プレイヤースプラッシュ(意図起爆のみ、誤爆はフラット3)/ 移動もカウントダウン消費(countdown 3のまま、新バランス定数なし)。fixture に player_start(1,3) 追加キー。UI: 菱形マーカー+movable/revealableハイライト+移動演出+攻撃着弾のアバターセル化。**攻略オラクル: 勝利7T(最終HP6)/敗北5T(test_avatar_walkthrough で全手固定)**。設計判断は decisions D22〜D27
 - **UX改良 M1a「読める風景」(game-design §7.5-1 の presentation 部分、2026-07-16)**: フラグ=爆弾スプライト風表示(描画プリミティブ)/ 開放セルの数字ヒートマップ(fx_config.COLOR_HEAT_LEVELS)/ 合法手ハイライト強化(alpha 0.34/0.38+2pxボーダー枠)/ HUD に Mines/Flags カウンター(snapshot から presentation 側集計)/ 敵インテント動的化 = **presentation層のみ・テスト430不変・WSLgスクショ検証**。注意: CellView 親の `_draw()` は子ノードに隠れるため、カスタム描画は `overlay_draw` 子ノード(highlight_rect 直後)の draw シグナルで行う
 - **UX改良 M1b 動的フィードバック(§7.5-4、2026-07-16)**: 開放ポップ(cell_view.play_reveal_pop、非ブロッキング)/ フラッドカスケード(board_view.play_reveal_cascade、Chebyshev距離の波・総ブロックFLOOD_CASCADE_MAX_SEC=0.45クランプ・誤爆時スキップ)/ フラグトグル演出(feedbackパス外・非ブロッキング=is_busy不使用のflag_toggled設計を維持)/ 敵撃破祝祭(金パーティクル+ENEMY DOWN!フロート+小ヒットストップ+シェイク、~0.5sブロック)= **presentation層のみ・テスト430不変・勝利ライン完走+retry連打ハング無しをWSLgで検証**
-- **ドキュメント**: README / implementation-plan / architecture / decisions(D1〜D27)/ playtest-checklist / pv-vision-roadmap 完備
+- **UX改良 M2a クリア二層化 domain/application(§7.3、2026-07-16)**: avatar のみ敵HP0→ `combat_won` + PHASE_RECOVERY(回収フェーズ: 敵ステップ全スキップ・誤爆死は通常敗北)→ 全安全セル開放で `perfect_clear + victory{perfect:true}` / FINISH(ターン非消費)で `victory{perfect:false}`。同時死亡はD6勝利優先でrecovery非経由。死体セル通行可(D29)。snapshot に phase/accidental_mine_count/safe_cells_total/safe_cells_revealed 追加。**テスト501件**(回収到達性はグリーディウォーカーで証明)。phase1 は完全凍結(テストdiffゼロ)。設計判断 D28〜D30
+- **ドキュメント**: README / implementation-plan / architecture / decisions(D1〜D30)/ playtest-checklist / pv-vision-roadmap 完備
 
 ## 4. できていない部分
 

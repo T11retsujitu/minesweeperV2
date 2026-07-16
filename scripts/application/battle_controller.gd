@@ -27,7 +27,7 @@ func _init(p_ruleset = CombatState.RULESET_PHASE1):
 func tap(cell):
 	if is_busy:
 		return _reject("input_locked", cell)
-	if state == null or not state.is_playing():
+	if state == null or not state.is_active():
 		return _reject("state_not_playing", cell)
 	if state.board.is_flagged(cell):
 		pending_detonation_cell = cell
@@ -54,7 +54,7 @@ func tap(cell):
 func long_press(cell):
 	if is_busy:
 		return _reject("input_locked", cell)
-	if state == null or not state.is_playing():
+	if state == null or not state.is_active():
 		return _reject("state_not_playing", cell)
 	var result = state.board.toggle_flag(cell)
 	if not result["accepted"]:
@@ -71,11 +71,21 @@ func long_press(cell):
 func confirm_detonation():
 	if is_busy:
 		return _reject("input_locked", pending_detonation_cell)
+	if state == null or not state.is_active():
+		return _reject("state_not_playing", pending_detonation_cell)
 	if pending_detonation_cell == null:
 		return _reject("no_pending_detonation", Vector2i.ZERO)
 	var cell = pending_detonation_cell
 	pending_detonation_cell = null
 	return _consume_turn({"type": TurnResolver.ACTION_DETONATE, "cell": cell})
+
+
+func finish_recovery():
+	if is_busy:
+		return _reject("input_locked", Vector2i.ZERO)
+	if state == null or not state.is_active():
+		return _reject("state_not_playing", Vector2i.ZERO)
+	return _consume_turn({"type": TurnResolver.ACTION_FINISH})
 
 
 func cancel_detonation():

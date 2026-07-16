@@ -95,6 +95,15 @@ DETONATE の爆風範囲にプレイヤーがいれば `explosion_damage_at` で
 ### D27. avatarランダム生成の player_start は盤面確定後に選出
 地雷・敵配置の検証が通った後に、敵ゾーン外・非地雷セルから rng で決定的に選出し force_reveal。phase1 経路の rng 消費順は不変(同シード同盤面テスト保護)。初手安全化(D10)の移設プールは開放済みセルを除外するため player_start 領域へ地雷が移設されることはない。
 
+### D28. クリア二層化: 敵撃破=PHASE_RECOVERY遷移、勝利は Perfect Clear か Finish で確定(Phase 2 / game-design §7.3)
+avatar ルールのみ、敵HP0で `enemy_died + combat_won` を発行し `PHASE_RECOVERY` へ(phase1 は即 victory のまま凍結)。回収フェーズは REVEAL/MOVE/DETONATE/フラグ可・敵ステップ(カウントダウン/攻撃)全スキップ・誤爆死は通常敗北。全安全セル開放で `perfect_clear + victory{perfect:true}`(クレーター=地雷セルは妨げない)、`FINISH` アクション(recovery中のみ合法・ターン非消費)で `victory{perfect:false}`。同一アクションで両者死亡は D6 勝利優先を踏襲し **recovery に入らず** 即 victory{perfect:false}。報酬は祝祭演出+リザルト表示のみ(スコア・数値報酬なし=ユーザー決定 2026-07-16)。狙い: 「敵の周り以外を開ける理由がない」問題の解消(§7.3)。
+
+### D29. 敵死亡後は敵セルへ移動可能(死体セル通行可)
+`avatar_can_move_to` の敵セル除外を「敵生存中のみ」に変更。死んだ敵のセルを永久通行不可にすると回収フェーズの到達性を損なうため。回収の全安全セル到達性は test_recovery_phase のグリーディウォーカーで機械的に証明。
+
+### D30. 回収フェーズ中は爆発の敵ダメージ計算をスキップ
+敵は死亡済みのため `enemy_damaged` イベント自体を発行しない(HP負値や無意味な0ダメージイベントを避ける)。スプラッシュ・誤爆のプレイヤーダメージは通常適用(回収中の起爆も位置取りリスクを保つ)。
+
 ## 工程の変更
 
 - handoff §11 では「Step 6: ランダム生成」が UI 接続の後だが、ヘッドレスで検証可能なものを先にまとめるため**生成をドメインと同じタスクに前倒し**した(テスト網が完成した状態で UI に進むため)。
