@@ -8,6 +8,7 @@ const FxConfig = preload("res://scripts/presentation/fx_config.gd")
 const FxLayer = preload("res://scripts/presentation/fx_layer.gd")
 const HpBar = preload("res://scripts/presentation/hp_bar.gd")
 const BoardWorld = preload("res://scripts/presentation/board_world.gd")
+const BackgroundTexture = preload("res://assets/textures/bg/bg_dungeon.png")
 
 var controller = BattleController.new(CombatState.RULESET_AVATAR)
 var debug_show_mines = false
@@ -573,8 +574,10 @@ func _build_layout():
 	background_layer.layer = -1
 	add_child(background_layer)
 
-	var background = ColorRect.new()
-	background.color = Color(0.08, 0.10, 0.11)
+	var background = TextureRect.new()
+	background.texture = BackgroundTexture
+	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	background.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	background.set_anchors_preset(Control.PRESET_FULL_RECT)
 	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	background_layer.add_child(background)

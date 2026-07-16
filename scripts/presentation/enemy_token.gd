@@ -3,10 +3,25 @@ extends Node2D
 const FxConfig = preload("res://scripts/presentation/fx_config.gd")
 const ViewConfig = preload("res://scripts/presentation/view_config.gd")
 
+const IDLE_TEXTURES = [
+	preload("res://assets/textures/chars/slime_idle_f1.png"),
+	preload("res://assets/textures/chars/slime_idle_f2.png"),
+]
+const SPRITE_SIZE = Vector2(88.0, 96.0)
+
 var countdown = 0
 var pulse_tween = null
 var pulse_active = false
+var body_root = null
+var sprite = null
+var idle_timer = null
+var idle_frame = 0
+var idle_timer_first_tick = true
 var state_key = {}
+
+
+func _ready():
+	_build_body()
 
 
 func set_display(is_visible, coord, next_countdown):
@@ -32,7 +47,6 @@ func _draw():
 	if not visible:
 		return
 	_draw_shadow(Vector2(0.0, -2.0), Vector2(27.0, 8.0), Color(0.0, 0.0, 0.0, 0.30))
-	_draw_body()
 	var rect = _badge_rect()
 	var color = FxConfig.COLOR_ENEMY_BADGE
 	var text = str(countdown)
@@ -47,42 +61,39 @@ func _badge_rect():
 	return Rect2(
 		Vector2(
 			-FxConfig.ENEMY_BADGE_SIZE * 0.5,
-			-ViewConfig.TOKEN_HEIGHT_PX - FxConfig.ENEMY_BADGE_SIZE - 6.0
+			-SPRITE_SIZE.y - FxConfig.ENEMY_BADGE_SIZE - 6.0
 		),
 		Vector2(FxConfig.ENEMY_BADGE_SIZE, FxConfig.ENEMY_BADGE_SIZE)
 	)
 
 
-func _draw_body():
-	var outline = PackedVector2Array([
-		Vector2(-25.0, -10.0),
-		Vector2(-23.0, -60.0),
-		Vector2(-17.0, -88.0),
-		Vector2(0.0, -104.0),
-		Vector2(17.0, -88.0),
-		Vector2(23.0, -60.0),
-		Vector2(25.0, -10.0),
-		Vector2(12.0, -3.0),
-		Vector2(-12.0, -3.0),
-	])
-	var fill = PackedVector2Array([
-		Vector2(-20.0, -12.0),
-		Vector2(-18.0, -58.0),
-		Vector2(-13.0, -82.0),
-		Vector2(0.0, -94.0),
-		Vector2(13.0, -82.0),
-		Vector2(18.0, -58.0),
-		Vector2(20.0, -12.0),
-		Vector2(9.0, -7.0),
-		Vector2(-9.0, -7.0),
-	])
-	draw_colored_polygon(outline, Color(0.02, 0.01, 0.01, 0.96))
-	draw_colored_polygon(fill, FxConfig.COLOR_ENEMY_BADGE.darkened(0.30))
-	draw_circle(Vector2(-7.0, -72.0), 3.0, Color.WHITE)
-	draw_circle(Vector2(7.0, -72.0), 3.0, Color.WHITE)
-	draw_circle(Vector2(-7.0, -72.0), 1.2, Color.BLACK)
-	draw_circle(Vector2(7.0, -72.0), 1.2, Color.BLACK)
-	draw_line(Vector2(-9.0, -46.0), Vector2(9.0, -46.0), Color(0.0, 0.0, 0.0, 0.45), 2.0, true)
+func _build_body():
+	body_root = Node2D.new()
+	body_root.name = "BodyRoot"
+	add_child(body_root)
+
+	sprite = Sprite2D.new()
+	sprite.name = "Sprite"
+	sprite.centered = false
+	sprite.texture = IDLE_TEXTURES[0]
+	sprite.position = Vector2(-SPRITE_SIZE.x * 0.5, -SPRITE_SIZE.y)
+	body_root.add_child(sprite)
+
+	idle_timer = Timer.new()
+	idle_timer.name = "IdleFrameTimer"
+	idle_timer.wait_time = FxConfig.IDLE_FRAME_SEC * 0.5
+	idle_timer.autostart = true
+	idle_timer.timeout.connect(_on_idle_timer_timeout)
+	add_child(idle_timer)
+
+
+func _on_idle_timer_timeout():
+	if idle_timer_first_tick:
+		idle_timer_first_tick = false
+		idle_timer.wait_time = FxConfig.IDLE_FRAME_SEC
+		idle_timer.start()
+	idle_frame = 1 - idle_frame
+	sprite.texture = IDLE_TEXTURES[idle_frame]
 
 
 func _draw_shadow(center, scale, color):
