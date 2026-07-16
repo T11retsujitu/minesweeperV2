@@ -6,17 +6,20 @@ signal state_reset(state)
 const CombatState = preload("res://scripts/domain/combat_state.gd")
 const TurnResolver = preload("res://scripts/domain/turn_resolver.gd")
 const BoardGenerator = preload("res://scripts/generation/board_generator.gd")
+const Fixtures = preload("res://scripts/generation/fixtures.gd")
 
 var state = null
 var mode = CombatState.MODE_FIXED
 var seed = 1
+var ruleset = CombatState.RULESET_PHASE1
 var is_busy = false
 var pending_detonation_cell = null
 var last_events = []
 
 
-func _init():
-	state = BoardGenerator.create_fixture_state()
+func _init(p_ruleset = CombatState.RULESET_PHASE1):
+	ruleset = p_ruleset
+	state = BoardGenerator.create_fixture_state(Fixtures.PHASE1_CORE_DEMO, ruleset)
 	mode = state.mode
 	seed = state.seed
 
@@ -35,6 +38,9 @@ func tap(cell):
 		}]
 		events_emitted.emit(last_events)
 		return last_events
+	var target = state.board.get_cell(cell)
+	if ruleset == CombatState.RULESET_AVATAR and target != null and target.is_revealed():
+		return _consume_turn({"type": TurnResolver.ACTION_MOVE, "cell": cell})
 	var relocation_event = null
 	if BoardGenerator.ensure_first_reveal_safe(state, cell):
 		relocation_event = {
@@ -84,7 +90,7 @@ func notify_effects_done():
 
 
 func retry():
-	state = BoardGenerator.create_state(mode, seed)
+	state = BoardGenerator.create_state(mode, seed, null, ruleset)
 	is_busy = false
 	pending_detonation_cell = null
 	last_events = [{"type": "state_reset", "reason": "retry"}]
@@ -101,7 +107,7 @@ func set_mode(next_mode, next_seed = null):
 		seed = 0
 	elif seed == 0:
 		seed = _make_new_seed()
-	state = BoardGenerator.create_state(mode, seed)
+	state = BoardGenerator.create_state(mode, seed, null, ruleset)
 	is_busy = false
 	pending_detonation_cell = null
 	last_events = [{"type": "state_reset", "reason": "mode_changed"}]
@@ -111,7 +117,7 @@ func set_mode(next_mode, next_seed = null):
 
 
 func regen_same_seed():
-	state = BoardGenerator.create_state(mode, seed)
+	state = BoardGenerator.create_state(mode, seed, null, ruleset)
 	is_busy = false
 	pending_detonation_cell = null
 	last_events = [{"type": "state_reset", "reason": "same_seed"}]
@@ -124,7 +130,7 @@ func regen_new_seed():
 	if mode == CombatState.MODE_FIXED:
 		mode = CombatState.MODE_RANDOM
 	seed = _make_new_seed()
-	state = BoardGenerator.create_state(mode, seed)
+	state = BoardGenerator.create_state(mode, seed, null, ruleset)
 	is_busy = false
 	pending_detonation_cell = null
 	last_events = [{"type": "state_reset", "reason": "new_seed"}]

@@ -7,6 +7,7 @@ const TestAvatarRules = preload("res://tests/test_avatar_rules.gd")
 const TestGenerator = preload("res://tests/test_generator.gd")
 const TestFixtureWalkthrough = preload("res://tests/test_fixture_walkthrough.gd")
 const TestAvatarWalkthrough = preload("res://tests/test_avatar_walkthrough.gd")
+const TestBattleControllerAvatar = preload("res://tests/test_battle_controller_avatar.gd")
 
 var total = 0
 var failed = 0
@@ -22,6 +23,7 @@ func _initialize():
 		TestGenerator.new(),
 		TestFixtureWalkthrough.new(),
 		TestAvatarWalkthrough.new(),
+		TestBattleControllerAvatar.new(),
 	]
 	for test in tests:
 		test.run(self)
