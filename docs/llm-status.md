@@ -8,7 +8,7 @@
 
 - **What**: マインスイーパーの地雷を「敵への攻撃資源」として起爆する短時間ローグライトの戦闘プロトタイプ。Godot 4.4.1 / GDScript / 720×1280縦画面 / gl_compatibility。
 - **核仮説(未判定)**: 数字を読んで特定した地雷を敵への攻撃として起爆する行為そのものが気持ちよいか。
-- **現フェーズ**: Phase 2 UX改良パス(game-design §7.5 の 1〜4 = 読める風景/クリア二層化/縄張り/攻撃動詞/ポジティブ演出)= **全6マイルストーン実装・自動検証・スクショ確認まで完了(2026-07-16)**。ユーザー実プレイでの手触り評価待ち。Phase 1 成果物は ruleset="phase1" として保存(テスト230件で検証継続)。
+- **現フェーズ**: Phase 2 UX改良パス全6マイルストーン完了に続き、**描画基盤刷新フェーズA〜D 完了(2026-07-16)**: 盤面 Node2D 化・カメラ(パン/ズーム)・ランダム戦 12×12・3/4見下ろし 2.5D プレースホルダ(規約は docs/view-spec.md)。ユーザー実プレイでの手触り評価待ち(12×12 の難易度/カメラ操作感/縄張り半径2の妥当性が新規評価項目)。Phase 1 成果物は ruleset="phase1" として保存(テスト230件で検証継続)。次の実装候補は pv-vision-roadmap Step 2(ドット絵アセット導入)。
 - **体制(ユーザー指定・変更不可)**: Claude = 設計者/オーケストレーター/検証者。**実コーディングは Codex MCP**(`mcp__codex__codex` / `codex-reply`)に依頼する。ユーザーは基本Auto進行(確認質問は最小限)を希望。
 
 ## 2. 環境ファクト
@@ -41,7 +41,8 @@
 - **盤面 Node2D 移行(カメラ/大型盤面/2.5D計画フェーズA、2026-07-16)**: 盤面描画を Control(GridContainer+cell_view)から Node2D ワールドへ等価移行。新規: `view_config.gd`(セル88px・座標規約: world_pos/cell_center/entity_anchor)/ `board_world.gd`(board_view.gd 後継、**公開API・シグナル同名維持**)/ `cell_node.gd`(custom draw 集約)/ `enemy_token.gd`・`player_token.gd`(EntityLayer, y_sort_enabled)/ `camera_rig.gd`(Camera2D 固定フィット+shake=offset振動)/ `board_input.gd`(_unhandled_input、押下時セル固定、DEVICE_ID_EMULATION除外)。battle_screen は CanvasLayer 構成(背景-1/HUD 1/FX 2/オーバーレイ3)に再編、盤面スロットは空スペーサー Control。fx_layer の shake/clear_all は canvas_transform 直叩きを廃止し camera_rig 委譲。**注意: Main ルート Control(main.gd)の mouse_filter=IGNORE 必須**(STOP だと全盤面クリックを飲む。2d34a2a と同型の退行を検証ゲートで検出・修正済み)。検証: テスト636不変 / WSLg 実入力(click/rclick/presshold、四隅、勝利ライン7T完走 HP6/10=オラクル一致、random、retry連打)/ FX位置(敵セルへのダメージフロート)目視。デバッグコマンド `presshold:x,y` 追加。カメラ操作(パン/ズーム)・大型盤面はフェーズB/C(計画: `~/.claude/plans/2d-shiny-kitten.md` 相当、方針: カメラ+12×12ランダム+3/4見下ろし2.5D)
 - **カメラ操作(フェーズB、2026-07-16)**: ドラッグパン(grab感=盤面が指に追従)/ ピンチズーム(タッチ2本、中点アンカー)/ ホイールズーム(マウス位置アンカー)/ 盤面境界クランプ / タップ・パン判別(`DRAG_TAP_CANCEL_PX=12`、押下時セル固定)。カメラ状態は `view_center`+`zoom_scalar`(camera_rig)、数学は `camera_math.gd` 純関数(fit_zoom/clamp_center/zoom_at_point/pan_center)で**ヘッドレステスト対象**(test_camera_math.gd、計650件)。ズーム範囲 0.5〜2.0(view_config)。初期表示: fit≥MIN_ZOOM なら全体フィット(7×7は従来通り)、下回れば DEFAULT_ZOOM でフォーカス中心(大型盤面用・フェーズCで発動)。refit は初期レイアウト/slot resized/state_reset のみ(**debug_cell_canvas_position からの refit 副作用は削除済み** — パン状態を破壊するため)。デバッグコマンド: `drag:x0,y0,x1,y1` `wheel:up|down@x,y` `zoomstate`。検証: パン後/ズーム後の click 的中・閾値内7pxはタップ成立・閾値超はタップ不成立を WSLg 実測
 - **大型盤面(フェーズC、2026-07-16)**: ランダム戦(avatar ルールセット)を **12×12・地雷26**(`RANDOM_BOARD_W/H/MINE_COUNT`、密度≈18.1%)に拡大。`create_random_state` に `board_config` 引数追加 — **null なら従来の 7×7/9(既存テスト完全凍結のため)**、`create_state` の MODE_RANDOM+RULESET_AVATAR 分岐のみ 12×12 を渡す(phase1 ランダムは 7×7 のまま)。fixture の board_size は `Vector2i(7, 7)` にリテラル化(値同一)。snapshot に `board_width`/`board_height` キー追加(加算のみ)。board_world は snapshot サイズ不一致でセルグリッド再構築+refit(cell_node.kill_tweens で await 安全)。新規 test_generator_large.gd(シード1〜50: fallback未使用/地雷数/ゾーン3/敵内側/アバター開始条件/決定性/初手安全移設)= **計1558件**。検証: WSLg で 12×12 フィット(zoom0.61)・四隅フラグ的中・ズームパン後の的中・mode:fixed で 7×7 復帰
-- **ドキュメント**: README / implementation-plan / architecture / decisions(D1〜D33)/ playtest-checklist / pv-vision-roadmap 完備
+- **2.5D描画基盤仕上げ(フェーズD、2026-07-16)**: 未開放/フラグ済みタイルに前面厚みバンド(`TILE_THICKNESS_PX=10`、開放セルはフラット=掘られた床)/ プレイヤー・敵トークンを背の高い立ち姿プレースホルダ(`TOKEN_HEIGHT_PX=104`、頭が1つ上のセルに重なる)に差し替え、**行順描画+Yソートによる 3/4 見下ろしの重なり規則を実証**。敵カウントダウンバッジはトークン頭上へ。**描画・カメラ・入力の規約は docs/view-spec.md に集約**(Step 2 アセット差し替えの受け入れ条件込み)。設計判断 D34(カメラ+12×12+3/4ビュー採用・アイソメ不採用)。検証: テスト1558不変・WSLg ズームイン時の重なり順目視
+- **ドキュメント**: README / implementation-plan / architecture / decisions(D1〜D34)/ playtest-checklist / pv-vision-roadmap / **view-spec(描画規約の正本)** 完備
 
 ## 4. できていない部分
 

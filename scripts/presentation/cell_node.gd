@@ -202,7 +202,10 @@ func kill_tweens():
 
 func _draw():
 	var rect = _tile_rect()
-	draw_style_box(_background_style(), rect)
+	var style = _background_style()
+	if _has_tile_thickness():
+		draw_rect(_tile_thickness_rect(), style.bg_color.darkened(0.45))
+	draw_style_box(style, rect)
 	if territory:
 		draw_rect(rect, FxConfig.COLOR_TERRITORY)
 	if movable or revealable or bumpable:
@@ -296,6 +299,16 @@ func _tile_rect():
 	var inset = ViewConfig.CELL_INSET_PX
 	var size = ViewConfig.CELL_SIZE_PX
 	return Rect2(Vector2(inset, inset), Vector2(size - inset * 2.0, size - inset * 2.0))
+
+
+func _tile_thickness_rect():
+	var inset = ViewConfig.CELL_INSET_PX
+	var size = ViewConfig.CELL_SIZE_PX
+	return Rect2(Vector2(inset, size - inset), Vector2(size - inset * 2.0, ViewConfig.TILE_THICKNESS_PX))
+
+
+func _has_tile_thickness():
+	return (not revealed and not detonated) or flagged_display
 
 
 func _centered_tile_rect():

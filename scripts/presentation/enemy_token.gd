@@ -31,6 +31,8 @@ func set_display(is_visible, coord, next_countdown):
 func _draw():
 	if not visible:
 		return
+	_draw_shadow(Vector2(0.0, -2.0), Vector2(27.0, 8.0), Color(0.0, 0.0, 0.0, 0.30))
+	_draw_body()
 	var rect = _badge_rect()
 	var color = FxConfig.COLOR_ENEMY_BADGE
 	var text = str(countdown)
@@ -44,11 +46,49 @@ func _draw():
 func _badge_rect():
 	return Rect2(
 		Vector2(
-			ViewConfig.CELL_SIZE_PX * 0.5 - FxConfig.ENEMY_BADGE_MARGIN_RIGHT - FxConfig.ENEMY_BADGE_SIZE,
-			-ViewConfig.CELL_SIZE_PX + FxConfig.ENEMY_BADGE_MARGIN_TOP
+			-FxConfig.ENEMY_BADGE_SIZE * 0.5,
+			-ViewConfig.TOKEN_HEIGHT_PX - FxConfig.ENEMY_BADGE_SIZE - 6.0
 		),
 		Vector2(FxConfig.ENEMY_BADGE_SIZE, FxConfig.ENEMY_BADGE_SIZE)
 	)
+
+
+func _draw_body():
+	var outline = PackedVector2Array([
+		Vector2(-25.0, -10.0),
+		Vector2(-23.0, -60.0),
+		Vector2(-17.0, -88.0),
+		Vector2(0.0, -104.0),
+		Vector2(17.0, -88.0),
+		Vector2(23.0, -60.0),
+		Vector2(25.0, -10.0),
+		Vector2(12.0, -3.0),
+		Vector2(-12.0, -3.0),
+	])
+	var fill = PackedVector2Array([
+		Vector2(-20.0, -12.0),
+		Vector2(-18.0, -58.0),
+		Vector2(-13.0, -82.0),
+		Vector2(0.0, -94.0),
+		Vector2(13.0, -82.0),
+		Vector2(18.0, -58.0),
+		Vector2(20.0, -12.0),
+		Vector2(9.0, -7.0),
+		Vector2(-9.0, -7.0),
+	])
+	draw_colored_polygon(outline, Color(0.02, 0.01, 0.01, 0.96))
+	draw_colored_polygon(fill, FxConfig.COLOR_ENEMY_BADGE.darkened(0.30))
+	draw_circle(Vector2(-7.0, -72.0), 3.0, Color.WHITE)
+	draw_circle(Vector2(7.0, -72.0), 3.0, Color.WHITE)
+	draw_circle(Vector2(-7.0, -72.0), 1.2, Color.BLACK)
+	draw_circle(Vector2(7.0, -72.0), 1.2, Color.BLACK)
+	draw_line(Vector2(-9.0, -46.0), Vector2(9.0, -46.0), Color(0.0, 0.0, 0.0, 0.45), 2.0, true)
+
+
+func _draw_shadow(center, scale, color):
+	draw_set_transform(center, 0.0, scale)
+	draw_circle(Vector2.ZERO, 1.0, color)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 func _draw_badge_text(rect, text):
