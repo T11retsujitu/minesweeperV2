@@ -22,6 +22,7 @@ var press_move_total = 0.0
 var touch_points = {}
 var pinch_start_distance = 0.0
 var pinch_start_zoom = 1.0
+var pinch_anchor = Vector2.ZERO
 
 
 func _ready():
@@ -124,8 +125,10 @@ func _handle_screen_touch(event):
 			get_viewport().set_input_as_handled()
 	else:
 		var was_pinching = state == STATE_PINCHING
+		var snap_anchor = pinch_anchor
 		touch_points.erase(event.index)
 		if was_pinching:
+			_snap_zoom_to_nearest_step(snap_anchor)
 			if touch_points.size() == 1:
 				state = STATE_PANNING
 				set_process(false)
@@ -190,6 +193,7 @@ func _begin_pinch():
 		return
 	pinch_start_distance = max(1.0, points[0].distance_to(points[1]))
 	pinch_start_zoom = _camera_zoom()
+	pinch_anchor = (points[0] + points[1]) * 0.5
 
 
 func _update_pinch():
@@ -199,20 +203,56 @@ func _update_pinch():
 	var distance = max(1.0, points[0].distance_to(points[1]))
 	var ratio = distance / pinch_start_distance
 	var anchor = (points[0] + points[1]) * 0.5
+	pinch_anchor = anchor
 	var camera = _camera_rig()
 	if camera != null:
 		camera.zoom_at(anchor, pinch_start_zoom * ratio)
 
 
 func _zoom_from_wheel(button_index, anchor):
-	var next_zoom = _camera_zoom()
-	if button_index == MOUSE_BUTTON_WHEEL_UP:
-		next_zoom *= ViewConfig.ZOOM_WHEEL_STEP
-	else:
-		next_zoom /= ViewConfig.ZOOM_WHEEL_STEP
+	var next_zoom = _next_zoom_step(_camera_zoom(), button_index == MOUSE_BUTTON_WHEEL_UP)
 	var camera = _camera_rig()
 	if camera != null:
 		camera.zoom_at(anchor, next_zoom)
+
+
+func _next_zoom_step(current_zoom, zoom_in):
+	var steps = ViewConfig.ZOOM_STEPS
+	if steps.is_empty():
+		return current_zoom
+	var epsilon = 0.0001
+	if zoom_in:
+		for step in steps:
+			if float(step) > current_zoom + epsilon:
+				return float(step)
+		return float(steps[steps.size() - 1])
+	for index in range(steps.size() - 1, -1, -1):
+		var step = float(steps[index])
+		if step < current_zoom - epsilon:
+			return step
+	return float(steps[0])
+
+
+func _nearest_zoom_step(current_zoom):
+	var steps = ViewConfig.ZOOM_STEPS
+	if steps.is_empty():
+		return current_zoom
+	var best = float(steps[0])
+	var best_distance = abs(current_zoom - best)
+	for step_value in steps:
+		var step = float(step_value)
+		var distance = abs(current_zoom - step)
+		if distance < best_distance:
+			best = step
+			best_distance = distance
+	return best
+
+
+func _snap_zoom_to_nearest_step(anchor):
+	var camera = _camera_rig()
+	if camera == null:
+		return
+	camera.zoom_at(anchor, _nearest_zoom_step(camera.get_zoom_scalar()))
 
 
 func _pan_by_relative(relative):
@@ -256,4 +296,5 @@ func _clear_gesture():
 	press_has_cell = false
 	touch_points = {}
 	pinch_start_distance = 0.0
+	pinch_anchor = Vector2.ZERO
 	set_process(false)

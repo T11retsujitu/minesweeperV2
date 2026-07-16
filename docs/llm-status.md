@@ -2,13 +2,13 @@
 
 > **読者**: 本プロジェクトを引き継ぐLLM(Claude / Codex)。人間向け説明は README.md。
 > **目的**: 最短で「何ができていて・何ができておらず・何が課題で・次に何をするか」を正確に把握させる。
-> **記載時点**: 2026-07-16, HEAD = 縄張り半径1改訂(`206dbfe`)。**このファイルは状態が変わったら必ず更新すること。**
+> **記載時点**: 2026-07-17, HEAD = 見た目インパクト強化 M-0(基盤整備)。**このファイルは状態が変わったら必ず更新すること。**
 
 ## 1. プロジェクト要約
 
 - **What**: マインスイーパーの地雷を「敵への攻撃資源」として起爆する短時間ローグライトの戦闘プロトタイプ。Godot 4.4.1 / GDScript / 720×1280縦画面 / gl_compatibility。
 - **核仮説(未判定)**: 数字を読んで特定した地雷を敵への攻撃として起爆する行為そのものが気持ちよいか。
-- **現フェーズ**: Phase 2 UX改良パス全6マイルストーン+描画基盤刷新フェーズA〜D 完了に続き、**縄張り半径 2→1 改訂(2026-07-16、ユーザー実プレイ判断=5×5は7×7の過半で広すぎ)**。ユーザー実プレイでの手触り評価待ち(12×12 の難易度/カメラ操作感/半径1の時間圧力が評価項目)。Phase 1 成果物は ruleset="phase1" として保存(テスト230件で検証継続)。次の実装候補は pv-vision-roadmap Step 2(ドット絵アセット導入)。
+- **現フェーズ**: **見た目インパクト強化計画を実行中**(2026-07-17 開始、計画: `~/.claude/plans/functional-weaving-frost.md`。ユーザー判断「現状はインパクトが弱い」→ テーマ=ダンジョン探索(PV踏襲)+AI生成アセット+起爆モーメント誇張で対応 = pv-vision-roadmap Step 2 の実装)。マイルストーン M-0(基盤整備)完了 → 次は M-A(盤面テクスチャ化)→ M-B(キャラ/背景)→ M-C(HUD整理)→ M-D(起爆誇張)→ M-E(静止画評価)。Phase 1 成果物は ruleset="phase1" として保存(テスト230件で検証継続)。並行してユーザー実プレイでの手触り評価待ち(12×12 の難易度/カメラ操作感/半径1の時間圧力)。
 - **体制(ユーザー指定・変更不可)**: Claude = 設計者/オーケストレーター/検証者。**実コーディングは Codex MCP**(`mcp__codex__codex` / `codex-reply`)に依頼する。ユーザーは基本Auto進行(確認質問は最小限)を希望。
 
 ## 2. 環境ファクト
@@ -42,7 +42,8 @@
 - **カメラ操作(フェーズB、2026-07-16)**: ドラッグパン(grab感=盤面が指に追従)/ ピンチズーム(タッチ2本、中点アンカー)/ ホイールズーム(マウス位置アンカー)/ 盤面境界クランプ / タップ・パン判別(`DRAG_TAP_CANCEL_PX=12`、押下時セル固定)。カメラ状態は `view_center`+`zoom_scalar`(camera_rig)、数学は `camera_math.gd` 純関数(fit_zoom/clamp_center/zoom_at_point/pan_center)で**ヘッドレステスト対象**(test_camera_math.gd、計650件)。ズーム範囲 0.5〜2.0(view_config)。初期表示: fit≥MIN_ZOOM なら全体フィット(7×7は従来通り)、下回れば DEFAULT_ZOOM でフォーカス中心(大型盤面用・フェーズCで発動)。refit は初期レイアウト/slot resized/state_reset のみ(**debug_cell_canvas_position からの refit 副作用は削除済み** — パン状態を破壊するため)。デバッグコマンド: `drag:x0,y0,x1,y1` `wheel:up|down@x,y` `zoomstate`。検証: パン後/ズーム後の click 的中・閾値内7pxはタップ成立・閾値超はタップ不成立を WSLg 実測
 - **大型盤面(フェーズC、2026-07-16)**: ランダム戦(avatar ルールセット)を **12×12・地雷26**(`RANDOM_BOARD_W/H/MINE_COUNT`、密度≈18.1%)に拡大。`create_random_state` に `board_config` 引数追加 — **null なら従来の 7×7/9(既存テスト完全凍結のため)**、`create_state` の MODE_RANDOM+RULESET_AVATAR 分岐のみ 12×12 を渡す(phase1 ランダムは 7×7 のまま)。fixture の board_size は `Vector2i(7, 7)` にリテラル化(値同一)。snapshot に `board_width`/`board_height` キー追加(加算のみ)。board_world は snapshot サイズ不一致でセルグリッド再構築+refit(cell_node.kill_tweens で await 安全)。新規 test_generator_large.gd(シード1〜50: fallback未使用/地雷数/ゾーン3/敵内側/アバター開始条件/決定性/初手安全移設)= **計1558件**。検証: WSLg で 12×12 フィット(zoom0.61)・四隅フラグ的中・ズームパン後の的中・mode:fixed で 7×7 復帰
 - **2.5D描画基盤仕上げ(フェーズD、2026-07-16)**: 未開放/フラグ済みタイルに前面厚みバンド(`TILE_THICKNESS_PX=10`、開放セルはフラット=掘られた床)/ プレイヤー・敵トークンを背の高い立ち姿プレースホルダ(`TOKEN_HEIGHT_PX=104`、頭が1つ上のセルに重なる)に差し替え、**行順描画+Yソートによる 3/4 見下ろしの重なり規則を実証**。敵カウントダウンバッジはトークン頭上へ。**描画・カメラ・入力の規約は docs/view-spec.md に集約**(Step 2 アセット差し替えの受け入れ条件込み)。設計判断 D34(カメラ+12×12+3/4ビュー採用・アイソメ不採用)。検証: テスト1558不変・WSLg ズームイン時の重なり順目視
-- **ドキュメント**: README / implementation-plan / architecture / decisions(D1〜D34)/ playtest-checklist / pv-vision-roadmap / **view-spec(描画規約の正本)** 完備
+- **見た目インパクト強化 M-0 基盤整備(2026-07-17)**: `docs/asset-spec.md`(AI生成アセットの仕様・24色パレット・生成プロンプト集の正本)/ `tools/asset_pipeline.gd`(GDScript headless: assets_src/ 原画→クロマキー→縮小→パレットremap→×2 NEAREST→整列→assets/textures/。`--placeholders` でダミー23件生成可)/ `tools/asset_check.gd`(機械検品、全PASS=exit 0)/ ピクセルフォント Press Start 2P 導入(OFL 1.1、assets/fonts/)/ ズーム離散化 `ZOOM_STEPS=[0.5,0.75,1.0,1.5,2.0]`(ホイール=段階遷移・ピンチ=終了時スナップ・初期fitは非離散・**camera_math.gd 不変**)/ main.gd に `confirmburst:<prefix>@f1,f2,...`(起爆演出の途中フレームを連続撮影=静止画ステージング用)。検証: テスト1558不変・WSLg でズーム段階/ズーム後click的中/burst5枚とカメラ状態不変を確認。**Python/PIL・ImageMagick はこの環境に無い**(sudo不可)ため画像処理は Godot headless で行う
+- **ドキュメント**: README / implementation-plan / architecture / decisions(D1〜D34)/ playtest-checklist / pv-vision-roadmap / **view-spec(描画規約の正本)** / **asset-spec(アセット仕様の正本)** 完備
 
 ## 4. できていない部分
 

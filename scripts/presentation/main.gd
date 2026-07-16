@@ -71,6 +71,8 @@ func _run_debug_command(command):
 		await _push_mouse_wheel(command.substr("wheel:".length()))
 	elif command == "zoomstate":
 		_print_zoomstate()
+	elif command.begins_with("confirmburst:"):
+		await _run_confirmburst(command.substr("confirmburst:".length()))
 	elif command == "mode:fixed":
 		battle_screen.debug_set_mode("fixed")
 	elif command == "mode:random":
@@ -193,6 +195,49 @@ func _push_mouse_wheel(command_text):
 	release.global_position = position
 	get_viewport().push_input(release, true)
 	await get_tree().process_frame
+
+
+func _run_confirmburst(command_text):
+	var at_index = command_text.find("@")
+	if at_index < 0:
+		print("confirmburst ignored: missing @")
+		return
+	var path_prefix = command_text.substr(0, at_index)
+	var frames = _parse_frame_list(command_text.substr(at_index + 1))
+	if path_prefix == "" or frames.is_empty():
+		print("confirmburst ignored: missing path prefix or frames")
+		return
+
+	battle_screen.debug_confirm()
+	var frame_cursor = 0
+	var frame_index = 0
+	while frame_index < frames.size():
+		frame_cursor += 1
+		await _wait_for_capture_frame()
+		while frame_index < frames.size() and int(frames[frame_index]) == frame_cursor:
+			var frame_number = int(frames[frame_index])
+			_save_screenshot(path_prefix + str(frame_number) + ".png")
+			frame_index += 1
+
+
+func _parse_frame_list(text):
+	var frames = []
+	for part in text.split(",", false):
+		var trimmed = part.strip_edges()
+		if trimmed == "":
+			continue
+		var frame = int(trimmed)
+		if frame > 0:
+			frames.append(frame)
+	frames.sort()
+	return frames
+
+
+func _wait_for_capture_frame():
+	if DisplayServer.get_name() == "headless":
+		await get_tree().process_frame
+	else:
+		await RenderingServer.frame_post_draw
 
 
 func _print_zoomstate():

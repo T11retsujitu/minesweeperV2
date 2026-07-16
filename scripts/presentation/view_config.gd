@@ -13,6 +13,7 @@ const MIN_ZOOM = 0.5
 const MAX_ZOOM = 2.0
 const DEFAULT_ZOOM = 1.0
 const ZOOM_WHEEL_STEP = 1.1
+const ZOOM_STEPS = [0.5, 0.75, 1.0, 1.5, 2.0]
 
 
 static func world_pos(coord):
