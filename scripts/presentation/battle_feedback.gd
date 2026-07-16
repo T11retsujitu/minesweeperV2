@@ -44,6 +44,9 @@ func play_events(events, snapshot):
 				accidental_mine_cell = event["cell"]
 			await board_view.play_explosion(event["cell"], accidental)
 			waited = true
+		elif event_type == "player_moved":
+			await _play_player_move_feedback(event["from"], event["to"])
+			waited = true
 		elif event_type == "dud_detonation":
 			await board_view.play_dud(event["cell"])
 			waited = true
@@ -56,7 +59,7 @@ func play_events(events, snapshot):
 			await enemy_bar.animate_to(int(event["after"]))
 			waited = true
 		elif event_type == "player_damaged" and int(event.get("amount", 0)) > 0:
-			await _play_player_damage_feedback(event, accidental_mine_cell)
+			await _play_player_damage_feedback(event, accidental_mine_cell, snapshot)
 			waited = true
 		elif event_type == "enemy_attacked":
 			status_label.text = "Enemy attacked"
@@ -64,7 +67,7 @@ func play_events(events, snapshot):
 			var damage_index = _enemy_attack_damage_index(events, index + 1)
 			if damage_index >= 0 and last_enemy_position != null:
 				consumed_enemy_attack_damage_indexes[damage_index] = true
-				await _play_enemy_attack_chain(events[damage_index])
+				await _play_enemy_attack_chain(events[damage_index], snapshot)
 			else:
 				await board_view.get_tree().process_frame
 			waited = true
@@ -79,10 +82,46 @@ func play_events(events, snapshot):
 		await board_view.get_tree().process_frame
 
 
-func _play_player_damage_feedback(event, accidental_mine_cell):
+func _play_player_move_feedback(from_cell, to_cell):
+	if fx_layer == null:
+		await board_view.get_tree().create_timer(FxConfig.PLAYER_MOVE_SEC).timeout
+		return
+	var marker = Control.new()
+	marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	marker.size = Vector2(FxConfig.PLAYER_MARKER_OUTLINE_SIZE, FxConfig.PLAYER_MARKER_OUTLINE_SIZE)
+	var outline = _make_move_marker_rect(
+		FxConfig.PLAYER_MARKER_OUTLINE_SIZE,
+		Color(1.0, 1.0, 1.0, 0.88)
+	)
+	var fill = _make_move_marker_rect(FxConfig.PLAYER_MARKER_SIZE, FxConfig.COLOR_PLAYER_MARKER)
+	fill.position = (marker.size - fill.size) * 0.5
+	marker.add_child(outline)
+	marker.add_child(fill)
+	var local_from = fx_layer.get_global_transform().affine_inverse() * board_view.debug_cell_canvas_position(from_cell)
+	var local_to = fx_layer.get_global_transform().affine_inverse() * board_view.debug_cell_canvas_position(to_cell)
+	marker.position = local_from - marker.size * 0.5
+	fx_layer.add_child(marker)
+	var tween = fx_layer.create_tween()
+	tween.tween_property(marker, "position", local_to - marker.size * 0.5, FxConfig.PLAYER_MOVE_SEC).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.finished.connect(marker.queue_free)
+	await board_view.get_tree().create_timer(FxConfig.PLAYER_MOVE_SEC).timeout
+
+
+func _make_move_marker_rect(marker_size, color):
+	var rect = ColorRect.new()
+	rect.color = color
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rect.size = Vector2(marker_size, marker_size)
+	rect.pivot_offset = rect.size * 0.5
+	rect.position = (Vector2(FxConfig.PLAYER_MARKER_OUTLINE_SIZE, FxConfig.PLAYER_MARKER_OUTLINE_SIZE) - rect.size) * 0.5
+	rect.rotation_degrees = 45.0
+	return rect
+
+
+func _play_player_damage_feedback(event, accidental_mine_cell, snapshot):
 	var player_amount = int(event.get("amount", 0))
 	var source = str(event.get("source", ""))
-	var player_pos = player_bar.get_global_rect().get_center()
+	var player_pos = _player_feedback_position(snapshot)
 	var text = "-%d" % player_amount
 	var color = FxConfig.COLOR_DAMAGE_ENEMY_ATK
 	if source == "accidental_mine":
@@ -92,14 +131,17 @@ func _play_player_damage_feedback(event, accidental_mine_cell):
 		color = FxConfig.COLOR_DAMAGE_MINE
 	elif source == "enemy_attack":
 		text = "-%d ENEMY ATK" % player_amount
+	elif source == "detonation_splash":
+		text = "-%d SPLASH!" % player_amount
+		color = FxConfig.COLOR_DAMAGE_MINE
 	fx_layer.spawn_damage_float(player_pos, text, color)
 	player_bar.flash()
 	await player_bar.animate_to(int(event["after"]))
 
 
-func _play_enemy_attack_chain(damage_event):
+func _play_enemy_attack_chain(damage_event, snapshot):
 	var enemy_pos = board_view.debug_cell_canvas_position(last_enemy_position)
-	var player_pos = player_bar.get_global_rect().get_center()
+	var player_pos = _player_feedback_position(snapshot)
 	await board_view.play_enemy_attack_glow(last_enemy_position)
 	await fx_layer.fire_projectile(enemy_pos, player_pos)
 	var amount = int(damage_event.get("amount", 0))
@@ -107,6 +149,14 @@ func _play_enemy_attack_chain(damage_event):
 	player_bar.flash()
 	fx_layer.shake(0.5)
 	await player_bar.animate_to(int(damage_event["after"]))
+
+
+func _player_feedback_position(snapshot):
+	if str(snapshot.get("ruleset", "")) == "phase2_avatar" and snapshot.has("player_position"):
+		var cell_pos = board_view.debug_cell_canvas_position(snapshot["player_position"])
+		if cell_pos != Vector2.ZERO:
+			return cell_pos
+	return player_bar.get_global_rect().get_center()
 
 
 func _enemy_attack_damage_index(events, index):

@@ -23,6 +23,10 @@ func _ready():
 func update_from_snapshot(snapshot, debug_show_mines):
 	var enemy_position = snapshot["enemy_position"]
 	var enemy_visible = int(snapshot["enemy_hp"]) > 0
+	var is_avatar = str(snapshot.get("ruleset", "")) == "phase2_avatar"
+	var player_position = snapshot.get("player_position", Vector2i.ZERO)
+	var movable_cells = snapshot.get("movable_cells", [])
+	var revealable_cells = snapshot.get("revealable_cells", [])
 	for cell_data in snapshot["cells"]:
 		var coord = cell_data["coord"]
 		if not cells.has(coord):
@@ -35,6 +39,9 @@ func update_from_snapshot(snapshot, debug_show_mines):
 			"previewed": previewed,
 			"preview_center": preview_center != null and coord == preview_center,
 			"preview_damage": preview_damage_map.get(coord, ""),
+			"player_here": is_avatar and coord == player_position,
+			"movable": is_avatar and movable_cells.has(coord),
+			"revealable": is_avatar and revealable_cells.has(coord),
 		}
 		cells[coord].set_display(cell_data, options)
 

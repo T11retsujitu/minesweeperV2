@@ -14,7 +14,10 @@ var long_press_sent = false
 var press_elapsed = 0.0
 
 var background_panel = null
+var highlight_rect = null
 var preview_rect = null
+var player_marker_outline = null
+var player_marker_fill = null
 var flash_rect = null
 var number_label = null
 var flag_label = null
@@ -60,6 +63,18 @@ func set_display(cell_data, options):
 	enemy_label.visible = enemy_visible
 	_update_enemy_badge(enemy_visible, int(options.get("enemy_countdown", 0)))
 
+	var movable = bool(options.get("movable", false))
+	var revealable = bool(options.get("revealable", false))
+	highlight_rect.visible = movable or revealable
+	if movable:
+		highlight_rect.color = FxConfig.COLOR_HIGHLIGHT_MOVABLE
+	elif revealable:
+		highlight_rect.color = FxConfig.COLOR_HIGHLIGHT_REVEALABLE
+
+	var player_here = bool(options.get("player_here", false))
+	player_marker_outline.visible = player_here
+	player_marker_fill.visible = player_here
+
 	var previewed = bool(options.get("previewed", false))
 	preview_rect.visible = previewed
 	preview_damage_label.visible = previewed
@@ -95,6 +110,11 @@ func flash_attack_glow(duration):
 
 func _on_flash_finished():
 	flash_rect.visible = false
+
+
+func _notification(what):
+	if what == NOTIFICATION_RESIZED:
+		_layout_player_marker()
 
 
 func _gui_input(event):
@@ -169,11 +189,32 @@ func _build_view():
 	background_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(background_panel)
 
+	highlight_rect = ColorRect.new()
+	highlight_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	highlight_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	highlight_rect.visible = false
+	add_child(highlight_rect)
+
 	preview_rect = ColorRect.new()
 	preview_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
 	preview_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	preview_rect.visible = false
 	add_child(preview_rect)
+
+	player_marker_outline = ColorRect.new()
+	player_marker_outline.color = Color(1.0, 1.0, 1.0, 0.88)
+	player_marker_outline.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	player_marker_outline.visible = false
+	player_marker_outline.rotation_degrees = 45.0
+	add_child(player_marker_outline)
+
+	player_marker_fill = ColorRect.new()
+	player_marker_fill.color = FxConfig.COLOR_PLAYER_MARKER
+	player_marker_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	player_marker_fill.visible = false
+	player_marker_fill.rotation_degrees = 45.0
+	add_child(player_marker_fill)
+	_layout_player_marker()
 
 	number_label = _make_label(34, HORIZONTAL_ALIGNMENT_CENTER, VERTICAL_ALIGNMENT_CENTER)
 	number_label.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -299,6 +340,22 @@ func _apply_background(revealed, flagged, detonated):
 		style.shadow_color = Color(0.04, 0.06, 0.07, 0.35)
 		style.shadow_size = 3
 	background_panel.add_theme_stylebox_override("panel", style)
+
+
+func _layout_player_marker():
+	if player_marker_outline == null or player_marker_fill == null:
+		return
+	var cell_size = size
+	if cell_size == Vector2.ZERO:
+		cell_size = custom_minimum_size
+	var outline_size = Vector2(FxConfig.PLAYER_MARKER_OUTLINE_SIZE, FxConfig.PLAYER_MARKER_OUTLINE_SIZE)
+	var fill_size = Vector2(FxConfig.PLAYER_MARKER_SIZE, FxConfig.PLAYER_MARKER_SIZE)
+	player_marker_outline.size = outline_size
+	player_marker_outline.pivot_offset = outline_size * 0.5
+	player_marker_outline.position = (cell_size - outline_size) * 0.5
+	player_marker_fill.size = fill_size
+	player_marker_fill.pivot_offset = fill_size * 0.5
+	player_marker_fill.position = (cell_size - fill_size) * 0.5
 
 
 func _number_color(value):

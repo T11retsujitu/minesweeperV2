@@ -3,12 +3,13 @@ extends Control
 const BattleController = preload("res://scripts/application/battle_controller.gd")
 const BattleFeedback = preload("res://scripts/presentation/battle_feedback.gd")
 const Balance = preload("res://scripts/config/game_balance.gd")
+const CombatState = preload("res://scripts/domain/combat_state.gd")
 const FxConfig = preload("res://scripts/presentation/fx_config.gd")
 const FxLayer = preload("res://scripts/presentation/fx_layer.gd")
 const HpBar = preload("res://scripts/presentation/hp_bar.gd")
 const BoardViewScene = preload("res://scenes/battle/board_view.tscn")
 
-var controller = BattleController.new()
+var controller = BattleController.new(CombatState.RULESET_AVATAR)
 var debug_show_mines = false
 
 var root = null
@@ -299,7 +300,7 @@ func _update_status_from_events(events):
 		elif event_type == "state_reset":
 			next_status = "Ready"
 		elif event_type == "turn_rejected":
-			next_status = "Input rejected: " + str(event.get("reason", "unknown"))
+			next_status = _reject_status_text(str(event.get("reason", "unknown")))
 		elif event_type == "flag_toggled":
 			var flag_text = "off"
 			if bool(event.get("flagged", false)):
@@ -308,6 +309,9 @@ func _update_status_from_events(events):
 		elif event_type == "cells_revealed":
 			var trigger = event["trigger"]
 			pending_reveal = "Revealed (%d, %d)" % [trigger.x, trigger.y]
+		elif event_type == "player_moved":
+			var target = event["to"]
+			next_status = "Moved to (%d, %d)" % [target.x, target.y]
 		elif event_type == "mine_exploded":
 			has_mine_result = true
 			if bool(event.get("accidental", false)):
@@ -327,6 +331,16 @@ func _update_status_from_events(events):
 		next_status = pending_reveal
 	if next_status != "":
 		status_label.text = next_status
+
+
+func _reject_status_text(reason):
+	if reason == "invalid_move_target":
+		return "Can't move there"
+	if reason == "cell_not_adjacent_to_player":
+		return "Too far to reveal"
+	if reason == "move_not_available":
+		return "Move unavailable"
+	return "Input rejected: " + reason
 
 
 func _play_event_feedback(events):
@@ -567,7 +581,7 @@ func _build_help_overlay():
 
 	box.add_child(_make_overlay_label("Help", 26))
 	var body = _make_overlay_label(
-		"Left click: reveal or open detonation preview\nRight click or long press: toggle flag\nGoal: read the numbers, identify mines, then detonate them to reduce enemy HP 6 to zero.\nThe enemy attacks for 2 when its countdown reaches 0.",
+		"Tap adjacent hidden cell = reveal\nTap adjacent revealed cell = move\nFlag & detonate = remote\nRight click or long press: toggle flag\nGoal: read the numbers, identify mines, then detonate them to reduce enemy HP 6 to zero.\nThe enemy attacks for 2 when its countdown reaches 0.",
 		18
 	)
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
