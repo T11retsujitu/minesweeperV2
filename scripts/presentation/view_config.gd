@@ -4,7 +4,7 @@ extends RefCounted
 # Tiles draw inside the footprint with an inset, while future tall sprites should
 # stand on entity_anchor() and extend upward over previous rows.
 const CELL_SIZE_PX = 88.0
-const CELL_INSET_PX = 2.0
+const CELL_INSET_PX = 0.0
 const TILE_THICKNESS_PX = 10.0 # 未開放タイルの前面(下辺)の厚み。3/4見下ろしの立体感
 const TOKEN_HEIGHT_PX = 104.0 # キャラトークンの高さ(セル88pxより背が高く、上のセルに重なる)
 const FIT_MARGIN_PX = 16.0

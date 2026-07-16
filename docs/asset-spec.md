@@ -90,7 +90,7 @@ no text, no watermark, no border, limited color palette, crisp pixels
 
 ### 4.3 個別プロンプト
 
-- **tile_hidden**: `raised stone block tile of a dungeon grid, seen from 3/4 top-down. The top surface fills the upper 90% of the canvas with straight edges touching the left/right/top canvas borders (seamless tileable horizontally), the bottom 10% is the darker front face (thickness) of the block. cool dark blue-gray stone, subtle cracks, slight top-edge highlight` (_b 差分: `+ patches of moss and a hairline crack`)
+- **tile_hidden**: `raised stone block tile of a dungeon grid, seen from 3/4 top-down. The top surface fills the upper 90% of the canvas with straight edges touching the left/right/top canvas borders (seamless tileable horizontally), the bottom 10% is the darker front face (thickness) of the block. clearly defined block edges (thin darker mortar lines on left and right edges). cool dark blue-gray stone, subtle cracks, slight top-edge highlight` (_b 差分: `+ patches of moss and a hairline crack`)
 - **tile_floor**: `excavated dungeon floor tile, dark desaturated cobblestone seen from above, fills the entire canvas, seamless tileable, very low contrast, very dark, no objects` (_b 差分: `+ tiny pebbles and a faint scratch`)
 - **tile_floor_crater**: `same dark cobblestone dungeon floor, with a blackened blast crater in the center, charred scorch marks, cracked and broken stones radiating outward, fills the entire canvas`
 - **overlay_flag**: `small wooden warning sign post with a painted white skull mark, planted into the ground, slight tilt, dark aged wood, green background`

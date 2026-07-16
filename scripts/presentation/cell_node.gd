@@ -3,6 +3,22 @@ extends Node2D
 const FxConfig = preload("res://scripts/presentation/fx_config.gd")
 const ViewConfig = preload("res://scripts/presentation/view_config.gd")
 
+const TEXTURES = {
+	"tile_hidden": preload("res://assets/textures/board/tile_hidden.png"),
+	"tile_hidden_b": preload("res://assets/textures/board/tile_hidden_b.png"),
+	"tile_floor": preload("res://assets/textures/board/tile_floor.png"),
+	"tile_floor_b": preload("res://assets/textures/board/tile_floor_b.png"),
+	"tile_floor_crater": preload("res://assets/textures/board/tile_floor_crater.png"),
+	"overlay_barrel": preload("res://assets/textures/board/overlay_barrel.png"),
+}
+const NUMBER_FONT = preload("res://assets/fonts/PressStart2P-Regular.ttf")
+const NUMBER_FONT_SIZE = 40
+const NUMBER_OUTLINE_SIZE = 7
+const PREVIEW_FONT_SIZE = 16
+const PREVIEW_OUTLINE_SIZE = 3
+const DEBUG_MINE_SCALE = 0.6
+const DEBUG_MINE_ALPHA = 0.55
+
 var coord = Vector2i.ZERO
 var flagged_display = false
 var revealed = false
@@ -53,9 +69,7 @@ class OverlayLayer:
 		if owner_cell == null:
 			return
 		if owner_cell.flagged_display:
-			owner_cell._draw_bomb(self)
-		if owner_cell.highlight_border_visible:
-			owner_cell._draw_highlight_border(self)
+			owner_cell._draw_barrel_centered(self, Vector2.ZERO, 1.0, 1.0)
 
 
 func _ready():
@@ -202,24 +216,25 @@ func kill_tweens():
 
 func _draw():
 	var rect = _tile_rect()
-	var style = _background_style()
-	if _has_tile_thickness():
-		draw_rect(_tile_thickness_rect(), style.bg_color.darkened(0.45))
-	draw_style_box(style, rect)
+	_draw_tile_texture()
+	if revealed and adjacent_count > 0 and not detonated:
+		var heat_tint = _heat_tint_color(adjacent_count)
+		if heat_tint.a > 0.0:
+			draw_rect(rect, heat_tint)
 	if territory:
 		draw_rect(rect, FxConfig.COLOR_TERRITORY)
 	if movable or revealable or bumpable:
 		draw_rect(rect, _highlight_fill_color())
 	if previewed:
 		draw_rect(rect, _preview_fill_color())
+	if highlight_border_visible:
+		_draw_highlight_border(self)
+	if debug_mine and not flagged_display:
+		_draw_barrel_centered(self, rect.get_center(), DEBUG_MINE_SCALE, DEBUG_MINE_ALPHA)
 	if revealed and adjacent_count > 0 and not detonated:
-		_draw_centered_text(str(adjacent_count), 34, _number_color(adjacent_count))
-	if detonated:
-		_draw_centered_text("X", 36, Color(1.0, 0.35, 0.22))
-	if debug_mine:
-		_draw_top_left_text("*", 18, Color(1.0, 0.55, 0.22), Vector2(6.0, 4.0))
+		_draw_centered_number(str(adjacent_count), _number_color(adjacent_count))
 	if previewed and preview_damage != "":
-		_draw_bottom_right_text(preview_damage, 16, Color(0.08, 0.06, 0.02), Vector2(5.0, 3.0))
+		_draw_bottom_right_text(preview_damage, PREVIEW_FONT_SIZE, Color(1.0, 0.94, 0.62), Vector2(5.0, 3.0))
 
 
 func _build_layers():
@@ -268,47 +283,32 @@ func _on_flag_pop_finished():
 	overlay_draw.modulate = Color.WHITE
 
 
-func _background_style():
-	var style = StyleBoxFlat.new()
-	style.corner_radius_top_left = 5
-	style.corner_radius_top_right = 5
-	style.corner_radius_bottom_left = 5
-	style.corner_radius_bottom_right = 5
-	style.border_width_left = 2
-	style.border_width_top = 2
-	style.border_width_right = 2
-	style.border_width_bottom = 2
-	if detonated and not revealed:
-		style.bg_color = Color(0.12, 0.13, 0.15)
-		style.border_color = Color(0.03, 0.03, 0.04)
-	elif revealed:
-		style.bg_color = _heat_color(adjacent_count)
-		style.border_color = Color(0.48, 0.52, 0.53)
-	elif flagged:
-		style.bg_color = Color(0.48, 0.16, 0.16)
-		style.border_color = Color(0.98, 0.74, 0.18)
-	else:
-		style.bg_color = Color(0.23, 0.34, 0.40)
-		style.border_color = Color(0.45, 0.57, 0.62)
-		style.shadow_color = Color(0.04, 0.06, 0.07, 0.35)
-		style.shadow_size = 3
-	return style
+func _draw_tile_texture():
+	var texture = _tile_texture()
+	if texture != null:
+		draw_texture(texture, Vector2.ZERO)
+
+
+func _tile_texture():
+	if detonated:
+		return TEXTURES["tile_floor_crater"]
+	if revealed:
+		if _uses_tile_variant_b():
+			return TEXTURES["tile_floor_b"]
+		return TEXTURES["tile_floor"]
+	if _uses_tile_variant_b():
+		return TEXTURES["tile_hidden_b"]
+	return TEXTURES["tile_hidden"]
+
+
+func _uses_tile_variant_b():
+	return ((coord.x * 7 + coord.y * 13) % 3) == 0
 
 
 func _tile_rect():
 	var inset = ViewConfig.CELL_INSET_PX
 	var size = ViewConfig.CELL_SIZE_PX
 	return Rect2(Vector2(inset, inset), Vector2(size - inset * 2.0, size - inset * 2.0))
-
-
-func _tile_thickness_rect():
-	var inset = ViewConfig.CELL_INSET_PX
-	var size = ViewConfig.CELL_SIZE_PX
-	return Rect2(Vector2(inset, size - inset), Vector2(size - inset * 2.0, ViewConfig.TILE_THICKNESS_PX))
-
-
-func _has_tile_thickness():
-	return (not revealed and not detonated) or flagged_display
 
 
 func _centered_tile_rect():
@@ -331,10 +331,10 @@ func _preview_fill_color():
 	return Color(1.0, 0.78, 0.22, 0.42)
 
 
-func _heat_color(value):
-	var max_index = FxConfig.COLOR_HEAT_LEVELS.size() - 1
+func _heat_tint_color(value):
+	var max_index = FxConfig.COLOR_HEAT_TINT_LEVELS.size() - 1
 	var index = int(clamp(value, 0, max_index))
-	return FxConfig.COLOR_HEAT_LEVELS[index]
+	return FxConfig.COLOR_HEAT_TINT_LEVELS[index]
 
 
 func _flag_pop_color(is_flagged):
@@ -344,66 +344,41 @@ func _flag_pop_color(is_flagged):
 	return color
 
 
-func _draw_bomb(canvas):
-	var side = ViewConfig.CELL_SIZE_PX
-	var center = Vector2.ZERO
-	var radius = side * 0.27
-	var fuse_width = side * 0.045
-	var fuse_start = center + Vector2(radius * 0.58, -radius * 0.72)
-	var fuse_mid = center + Vector2(radius * 0.92, -radius * 1.08)
-	var fuse_end = center + Vector2(radius * 1.18, -radius * 1.26)
-	var spark_center = fuse_end + Vector2(radius * 0.16, -radius * 0.08)
-
-	canvas.draw_circle(center, radius, FxConfig.COLOR_BOMB_BODY_RIM)
-	canvas.draw_circle(center + Vector2(radius * 0.05, radius * 0.06), radius * 0.91, FxConfig.COLOR_BOMB_BODY)
-	canvas.draw_arc(center, radius * 0.68, deg_to_rad(206.0), deg_to_rad(286.0), 16, FxConfig.COLOR_BOMB_HIGHLIGHT, side * 0.025, true)
-	canvas.draw_line(fuse_start, fuse_mid, FxConfig.COLOR_BOMB_FUSE, fuse_width, true)
-	canvas.draw_line(fuse_mid, fuse_end, FxConfig.COLOR_BOMB_FUSE, fuse_width, true)
-	canvas.draw_circle(spark_center, radius * 0.17, FxConfig.COLOR_BOMB_SPARK)
+func _draw_barrel_centered(canvas, center, scale_value, alpha):
+	var side = ViewConfig.CELL_SIZE_PX * scale_value
+	var rect = Rect2(center - Vector2.ONE * side * 0.5, Vector2.ONE * side)
+	canvas.draw_texture_rect(TEXTURES["overlay_barrel"], rect, false, Color(1, 1, 1, alpha))
 
 
 func _draw_highlight_border(canvas):
 	var border_width = FxConfig.HIGHLIGHT_BORDER_WIDTH
-	var rect = _centered_tile_rect().grow(-border_width * 0.5)
+	var rect = _tile_rect().grow(-border_width * 0.5)
 	if rect.size.x <= 0.0 or rect.size.y <= 0.0:
 		return
 	canvas.draw_rect(rect, highlight_border_color, false, border_width)
 
 
-func _draw_centered_text(text, font_size, color):
-	var font = ThemeDB.fallback_font
+func _draw_centered_number(text, color):
 	var size = ViewConfig.CELL_SIZE_PX
-	var text_size = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
-	var baseline = (size - font.get_height(font_size)) * 0.5 + font.get_ascent(font_size)
+	var text_size = NUMBER_FONT.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, NUMBER_FONT_SIZE)
+	var baseline = (size - NUMBER_FONT.get_height(NUMBER_FONT_SIZE)) * 0.5 + NUMBER_FONT.get_ascent(NUMBER_FONT_SIZE)
 	var pos = Vector2((size - text_size.x) * 0.5, baseline)
-	draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
-
-
-func _draw_top_left_text(text, font_size, color, offset):
-	var font = ThemeDB.fallback_font
-	var pos = Vector2(offset.x, offset.y + font.get_ascent(font_size))
-	draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
+	draw_string_outline(NUMBER_FONT, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, NUMBER_FONT_SIZE, NUMBER_OUTLINE_SIZE, Color(0, 0, 0, 0.92))
+	draw_string(NUMBER_FONT, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, NUMBER_FONT_SIZE, color)
 
 
 func _draw_bottom_right_text(text, font_size, color, padding):
-	var font = ThemeDB.fallback_font
+	var font = NUMBER_FONT
 	var text_size = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size)
 	var pos = Vector2(
 		ViewConfig.CELL_SIZE_PX - padding.x - text_size.x,
 		ViewConfig.CELL_SIZE_PX - padding.y - font.get_descent(font_size)
 	)
+	draw_string_outline(font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, PREVIEW_OUTLINE_SIZE, Color(0, 0, 0, 0.88))
 	draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
 
 
 func _number_color(value):
-	if value == 1:
-		return Color(0.05, 0.20, 0.78)
-	if value == 2:
-		return Color(0.00, 0.45, 0.18)
-	if value == 3:
-		return Color(0.75, 0.06, 0.05)
-	if value == 4:
-		return Color(0.30, 0.10, 0.64)
-	if value == 5:
-		return Color(0.58, 0.22, 0.00)
-	return Color(0.08, 0.08, 0.08)
+	var max_index = FxConfig.COLOR_NUMBER_LEVELS.size() - 1
+	var index = int(clamp(value - 1, 0, max_index))
+	return FxConfig.COLOR_NUMBER_LEVELS[index]

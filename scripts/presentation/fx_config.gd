@@ -63,16 +63,26 @@ const COLOR_HIGHLIGHT_REVEALABLE_BORDER = Color(1.0, 0.82, 0.18, 0.95)
 const COLOR_HIGHLIGHT_BUMPABLE_BORDER = Color(1.0, 0.28, 0.18, 0.96)
 const COLOR_TERRITORY = Color(0.85, 0.20, 0.20, 0.10)
 const HIGHLIGHT_BORDER_WIDTH = 2.0
-const COLOR_HEAT_LEVELS = [
-	Color(0.73, 0.76, 0.76),
-	Color(0.69, 0.79, 0.68),
-	Color(0.78, 0.80, 0.62),
-	Color(0.84, 0.75, 0.56),
-	Color(0.88, 0.68, 0.51),
-	Color(0.89, 0.60, 0.50),
-	Color(0.88, 0.54, 0.50),
-	Color(0.85, 0.48, 0.49),
-	Color(0.80, 0.42, 0.46),
+const COLOR_NUMBER_LEVELS = [
+	Color(0.46, 0.82, 1.0),
+	Color(0.55, 1.0, 0.46),
+	Color(1.0, 0.44, 0.28),
+	Color(0.86, 0.58, 1.0),
+	Color(1.0, 0.84, 0.28),
+	Color(0.38, 1.0, 0.94),
+	Color(1.0, 0.98, 0.90),
+	Color(0.84, 0.88, 0.94),
+]
+const COLOR_HEAT_TINT_LEVELS = [
+	Color(1.0, 0.58, 0.12, 0.0),
+	Color(1.0, 0.58, 0.12, 0.0),
+	Color(1.0, 0.58, 0.12, 0.0),
+	Color(1.0, 0.56, 0.10, 0.06),
+	Color(1.0, 0.52, 0.08, 0.09),
+	Color(1.0, 0.46, 0.06, 0.12),
+	Color(1.0, 0.38, 0.04, 0.15),
+	Color(1.0, 0.30, 0.03, 0.17),
+	Color(1.0, 0.24, 0.02, 0.18),
 ]
 const COLOR_BOMB_BODY = Color(0.035, 0.040, 0.045)
 const COLOR_BOMB_BODY_RIM = Color(0.12, 0.13, 0.14)

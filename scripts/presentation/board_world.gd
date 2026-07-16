@@ -31,6 +31,7 @@ var board_h = Balance.BOARD_H
 
 
 func _ready():
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_build_world()
 
 
@@ -209,11 +210,13 @@ func is_coord_on_board(coord):
 func _build_world():
 	ground_layer = Node2D.new()
 	ground_layer.name = "GroundLayer"
+	ground_layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	add_child(ground_layer)
 
 	entity_layer = Node2D.new()
 	entity_layer.name = "EntityLayer"
 	entity_layer.y_sort_enabled = true
+	entity_layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	add_child(entity_layer)
 
 	_build_cell_grid()

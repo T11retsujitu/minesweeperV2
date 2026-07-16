@@ -5,7 +5,6 @@ const CHROMA_HARD_THRESHOLD = 0.22
 const CHROMA_SOFT_THRESHOLD = 0.35
 const ALPHA_CUTOFF = 8
 const BOTTOM_MARGIN_PX = 4
-const PLACEHOLDER_BORDER_PX = 2
 
 
 func _initialize():
@@ -234,80 +233,309 @@ func _compose_canvas(image, asset, canvas_px):
 	return canvas
 
 
-func _write_placeholder(asset, palette):
+func _write_placeholder(asset, _palette):
 	var canvas_px = _vector2i_from_array(asset.get("canvas_px", [1, 1]))
 	var image = _create_image(canvas_px.x, canvas_px.y)
 	var id = str(asset.get("id", ""))
-	var hash_value = _stable_hash(id)
-	var base = _placeholder_color(hash_value, palette, 3)
-	var accent = _placeholder_color(hash_value, palette, 11)
-	var shadow = _placeholder_color(hash_value, palette, 17)
-	var chroma = asset.get("chroma", null)
 	var anchor = str(asset.get("anchor", "fill"))
-	var transparent_border = 0
-	if chroma != null:
-		transparent_border = int(clamp(min(canvas_px.x, canvas_px.y) / 10, 4, 10))
-	var bottom_clear = BOTTOM_MARGIN_PX if anchor == "bottom_center" else 0
-	var rect = Rect2i(
-		transparent_border,
-		transparent_border,
-		max(1, canvas_px.x - transparent_border * 2),
-		max(1, canvas_px.y - transparent_border * 2 - bottom_clear)
-	)
 
-	for y in range(rect.position.y, rect.position.y + rect.size.y):
-		for x in range(rect.position.x, rect.position.x + rect.size.x):
-			var color = base
-			if ((x + y + hash_value) % 17) == 0:
-				color = accent
-			elif ((x - y + hash_value) % 23) == 0:
-				color = shadow
-			image.set_pixel(x, y, color)
-
-	_draw_placeholder_frame(image, rect, accent, shadow)
-	_draw_placeholder_mark(image, rect, hash_value, accent, shadow)
+	match id:
+		"tile_hidden":
+			_draw_placeholder_hidden_tile(image, false)
+		"tile_hidden_b":
+			_draw_placeholder_hidden_tile(image, true)
+		"tile_floor":
+			_draw_placeholder_floor_tile(image, false)
+		"tile_floor_b":
+			_draw_placeholder_floor_tile(image, true)
+		"tile_floor_crater":
+			_draw_placeholder_crater_tile(image)
+		"overlay_barrel":
+			_draw_placeholder_barrel(image)
+		"overlay_flag":
+			_draw_placeholder_flag(image)
+		"player_idle_f1":
+			_draw_placeholder_player(image, 0)
+		"player_idle_f2":
+			_draw_placeholder_player(image, 2)
+		"slime_idle_f1":
+			_draw_placeholder_slime(image, false)
+		"slime_idle_f2":
+			_draw_placeholder_slime(image, true)
+		"bg_dungeon":
+			_draw_placeholder_bg_dungeon(image)
+		"hud_panel":
+			_draw_placeholder_hud_panel(image)
+		"hud_button":
+			_draw_placeholder_hud_button(image, false)
+		"hud_button_pressed":
+			_draw_placeholder_hud_button(image, true)
+		"icon_mine":
+			_draw_placeholder_icon_mine(image)
+		"icon_flag":
+			_draw_placeholder_icon_flag(image)
+		"fireball_f1":
+			_draw_placeholder_fireball(image, 1)
+		"fireball_f2":
+			_draw_placeholder_fireball(image, 2)
+		"fireball_f3":
+			_draw_placeholder_fireball(image, 3)
+		"smoke_f1":
+			_draw_placeholder_smoke(image, 1)
+		"smoke_f2":
+			_draw_placeholder_smoke(image, 2)
+		"smoke_f3":
+			_draw_placeholder_smoke(image, 3)
+		_:
+			_draw_placeholder_floor_tile(image, false)
 
 	if bool(asset.get("seamless_x", false)):
-		_enforce_seamless_x_placeholder(image, base)
+		_enforce_seamless_x_placeholder(image)
 	if anchor == "bottom_center":
 		_clear_bottom_margin(image)
 
 	return _save_image(image, str(asset.get("target", "")))
 
 
-func _draw_placeholder_frame(image, rect, accent, shadow):
-	for offset in range(PLACEHOLDER_BORDER_PX):
-		var left = rect.position.x + offset
-		var right = rect.position.x + rect.size.x - 1 - offset
-		var top = rect.position.y + offset
-		var bottom = rect.position.y + rect.size.y - 1 - offset
-		for x in range(left, right + 1):
-			image.set_pixel(x, top, accent)
-			image.set_pixel(x, bottom, shadow)
-		for y in range(top, bottom + 1):
-			image.set_pixel(left, y, accent)
-			image.set_pixel(right, y, shadow)
+func _draw_placeholder_hidden_tile(image, variant_b):
+	var w = image.get_width()
+	var h = image.get_height()
+	var band_h = min(10, h)
+	var top_h = h - band_h
+	_fill_rect(image, Rect2i(0, 0, w, top_h), _p("#4a4a66"))
+	_fill_rect(image, Rect2i(0, 0, w, min(3, top_h)), _p("#8b8ca8"))
+	_fill_rect(image, Rect2i(0, top_h, w, band_h), _p("#222234"))
+	_fill_rect(image, Rect2i(18, 24, 3, 2), _p("#33334d"))
+	_fill_rect(image, Rect2i(54, 34, 2, 2), _p("#33334d"))
+	_fill_rect(image, Rect2i(36, 61, 4, 1), _p("#33334d"))
+	if variant_b:
+		_fill_rect(image, Rect2i(58, 17, 12, 6), _p("#3d5a2e"))
+		_fill_rect(image, Rect2i(63, 23, 7, 4), _p("#3d5a2e"))
+	_fill_rect(image, Rect2i(0, 0, 1, h), _p("#33334d"))
+	_fill_rect(image, Rect2i(w - 1, 0, 1, h), _p("#33334d"))
 
 
-func _draw_placeholder_mark(image, rect, hash_value, accent, shadow):
-	var center = rect.position + rect.size / 2
-	var radius = max(3, min(rect.size.x, rect.size.y) / 5)
-	for y in range(rect.position.y, rect.position.y + rect.size.y):
-		for x in range(rect.position.x, rect.position.x + rect.size.x):
-			var dx = abs(x - center.x)
-			var dy = abs(y - center.y)
-			if dx + dy == radius:
-				image.set_pixel(x, y, accent)
-			elif hash_value % 2 == 0 and abs(dx - dy) == 0 and dx < radius:
-				image.set_pixel(x, y, shadow)
-			elif hash_value % 2 != 0 and dx < radius and dy == 0:
-				image.set_pixel(x, y, shadow)
+func _draw_placeholder_floor_tile(image, variant_b):
+	var w = image.get_width()
+	var h = image.get_height()
+	_fill_rect(image, Rect2i(0, 0, w, h), _p("#222234"))
+	_fill_rect(image, Rect2i(w / 2, 0, 1, h), _p("#151521"))
+	_fill_rect(image, Rect2i(0, h / 2, w, 1), _p("#151521"))
+	if variant_b:
+		_fill_rect(image, Rect2i(21, 18, 2, 2), _p("#33334d"))
+		_fill_rect(image, Rect2i(63, 59, 2, 2), _p("#33334d"))
+	_fill_floor_side_mortar(image)
 
 
-func _enforce_seamless_x_placeholder(image, edge_color):
+func _draw_placeholder_crater_tile(image):
+	_draw_placeholder_floor_tile(image, false)
+	var center = Vector2(image.get_width(), image.get_height()) * 0.5
+	var radius = min(image.get_width(), image.get_height()) / 3.0
+	_fill_circle(image, center, radius, _p("#0a0a10"))
+	_fill_circle(image, center + Vector2(-18, -7), radius * 0.28, _p("#151521"))
+	_fill_circle(image, center + Vector2(17, 10), radius * 0.22, _p("#151521"))
+	_fill_circle(image, center + Vector2(3, -21), radius * 0.18, _p("#151521"))
+	_fill_floor_side_mortar(image)
+
+
+func _fill_floor_side_mortar(image):
+	var w = image.get_width()
+	var h = image.get_height()
+	_fill_rect(image, Rect2i(0, 0, 1, h), _p("#0a0a10"))
+	_fill_rect(image, Rect2i(w - 1, 0, 1, h), _p("#0a0a10"))
+
+
+func _draw_placeholder_barrel(image):
+	var center = Vector2(image.get_width(), image.get_height()) * 0.5 + Vector2(0, 3)
+	_fill_ellipse(image, center, Vector2(22, 29), _p("#6e5230"))
+	_fill_rect(image, Rect2i(int(center.x - 22), int(center.y - 21), 44, 42), _p("#6e5230"))
+	_fill_ellipse(image, center + Vector2(0, -21), Vector2(22, 7), _p("#97744a"))
+	_fill_ellipse(image, center + Vector2(0, 21), Vector2(22, 7), _p("#4a3623"))
+	_fill_rect(image, Rect2i(int(center.x - 22), int(center.y - 13), 44, 5), _p("#33334d"))
+	_fill_rect(image, Rect2i(int(center.x - 22), int(center.y + 11), 44, 5), _p("#33334d"))
+	_draw_line(image, Vector2(center.x + 7, center.y - 31), Vector2(center.x + 18, center.y - 39), _p("#97744a"), 2)
+	_fill_circle(image, Vector2(center.x + 20, center.y - 41), 2.0, _p("#f2b02c"))
+
+
+func _draw_placeholder_flag(image):
+	var center_x = image.get_width() / 2
+	_fill_rect(image, Rect2i(center_x - 12, 24, 24, 17), _p("#f5f2e6"))
+	_fill_rect(image, Rect2i(center_x - 2, 41, 4, 26), _p("#97744a"))
+	_fill_rect(image, Rect2i(center_x - 7, 31, 3, 3), _p("#0a0a10"))
+	_fill_rect(image, Rect2i(center_x + 4, 31, 3, 3), _p("#0a0a10"))
+	_fill_rect(image, Rect2i(center_x - 2, 37, 4, 2), _p("#0a0a10"))
+
+
+func _draw_placeholder_player(image, y_offset):
+	var foot_y = image.get_height() - BOTTOM_MARGIN_PX + y_offset
+	var center_x = image.get_width() / 2
+	_fill_circle(image, Vector2(center_x, foot_y - 82), 13.0, _p("#66678a"))
+	_fill_rect(image, Rect2i(center_x - 15, foot_y - 69, 30, 43), _p("#66678a"))
+	_fill_rect(image, Rect2i(center_x - 18, foot_y - 44, 9, 26), _p("#4a4a66"))
+	_fill_rect(image, Rect2i(center_x + 9, foot_y - 44, 9, 26), _p("#4a4a66"))
+	_fill_rect(image, Rect2i(center_x - 10, foot_y - 26, 8, 24), _p("#33334d"))
+	_fill_rect(image, Rect2i(center_x + 2, foot_y - 26, 8, 24), _p("#33334d"))
+	_fill_rect(image, Rect2i(center_x - 2, foot_y - 52, 4, 4), _p("#f2b02c"))
+
+
+func _draw_placeholder_slime(image, squashed):
+	var foot_y = image.get_height() - BOTTOM_MARGIN_PX
+	var center = Vector2(image.get_width() * 0.5, foot_y - 20)
+	var radius = Vector2(24, 24)
+	if squashed:
+		radius = Vector2(27, 20)
+		center.y += 4
+	_fill_ellipse(image, center, radius, _p("#5f8a3d"))
+	_fill_rect(image, Rect2i(int(center.x - radius.x), int(center.y), int(radius.x * 2.0), int(radius.y)), _p("#5f8a3d"))
+	_fill_rect(image, Rect2i(int(center.x - 9), int(center.y - 4), 4, 4), _p("#0a0a10"))
+	_fill_rect(image, Rect2i(int(center.x + 6), int(center.y - 4), 4, 4), _p("#0a0a10"))
+	_fill_rect(image, Rect2i(int(center.x - 11), int(center.y - 15), 4, 3), _p("#b3e05e"))
+
+
+func _draw_placeholder_bg_dungeon(image):
+	var top = _p("#0a0a10")
+	var bottom = _p("#151521")
 	for y in range(image.get_height()):
-		image.set_pixel(0, y, edge_color)
+		var t = float(y) / float(max(1, image.get_height() - 1))
+		var color = top.lerp(bottom, t)
+		_fill_rect(image, Rect2i(0, y, image.get_width(), 1), color)
+	var glow = _p("#7a3b12")
+	glow.a = 0.25
+	_blend_ellipse(image, Vector2(image.get_width() * 0.25, image.get_height() * 0.34), Vector2(70, 210), glow)
+	_blend_ellipse(image, Vector2(image.get_width() * 0.75, image.get_height() * 0.34), Vector2(70, 210), glow)
+
+
+func _draw_placeholder_hud_panel(image):
+	_fill_rect(image, Rect2i(0, 0, image.get_width(), image.get_height()), _p("#33334d"))
+	_fill_rect(image, Rect2i(24, 24, image.get_width() - 48, image.get_height() - 48), _p("#151521"))
+
+
+func _draw_placeholder_hud_button(image, pressed):
+	var border = _p("#33334d")
+	var inner = _p("#222234")
+	if pressed:
+		border = _p("#222234")
+		inner = _p("#151521")
+	_fill_rect(image, Rect2i(0, 0, image.get_width(), image.get_height()), border)
+	_fill_rect(image, Rect2i(12, 10, image.get_width() - 24, image.get_height() - 20), inner)
+
+
+func _draw_placeholder_icon_mine(image):
+	var center = Vector2(image.get_width() * 0.5, image.get_height() * 0.58)
+	_fill_circle(image, center, 12.0, _p("#0a0a10"))
+	_draw_line(image, center + Vector2(7, -9), center + Vector2(16, -18), _p("#97744a"), 2)
+	_fill_circle(image, center + Vector2(18, -20), 2.0, _p("#f2b02c"))
+
+
+func _draw_placeholder_icon_flag(image):
+	var center_x = image.get_width() / 2
+	_fill_rect(image, Rect2i(center_x - 7, 9, 14, 10), _p("#f5f2e6"))
+	_fill_rect(image, Rect2i(center_x - 1, 19, 2, 14), _p("#97744a"))
+	_fill_rect(image, Rect2i(center_x - 4, 13, 2, 2), _p("#0a0a10"))
+	_fill_rect(image, Rect2i(center_x + 3, 13, 2, 2), _p("#0a0a10"))
+
+
+func _draw_placeholder_fireball(image, frame):
+	var center = Vector2(image.get_width(), image.get_height()) * 0.5
+	if frame == 1:
+		_fill_circle(image, center, image.get_width() * 0.25, _p("#f5f2e6"))
+	elif frame == 2:
+		_fill_circle(image, center, image.get_width() * 0.34, _p("#7a3b12"))
+		_fill_circle(image, center, image.get_width() * 0.25, _p("#d97b28"))
+	else:
+		for point in [Vector2(-30, -10), Vector2(-8, 24), Vector2(22, -24), Vector2(35, 18), Vector2(2, -4)]:
+			_fill_circle(image, center + point, 5.0, _p("#d97b28"))
+
+
+func _draw_placeholder_smoke(image, frame):
+	var center = Vector2(image.get_width(), image.get_height()) * 0.5
+	var color = _p("#4a4a66")
+	color.a = 0.72
+	var radius = 18.0
+	if frame == 2:
+		color.a = 0.50
+		radius = 25.0
+	elif frame == 3:
+		color.a = 0.32
+		radius = 31.0
+	_fill_circle(image, center, radius, color)
+
+
+func _enforce_seamless_x_placeholder(image):
+	for y in range(image.get_height()):
+		var edge_color = image.get_pixel(0, y)
 		image.set_pixel(image.get_width() - 1, y, edge_color)
+
+
+func _fill_rect(image, rect, color):
+	var start_x = int(clamp(rect.position.x, 0, image.get_width()))
+	var start_y = int(clamp(rect.position.y, 0, image.get_height()))
+	var end_x = int(clamp(rect.position.x + rect.size.x, 0, image.get_width()))
+	var end_y = int(clamp(rect.position.y + rect.size.y, 0, image.get_height()))
+	for y in range(start_y, end_y):
+		for x in range(start_x, end_x):
+			image.set_pixel(x, y, color)
+
+
+func _fill_circle(image, center, radius, color):
+	_fill_ellipse(image, center, Vector2(radius, radius), color)
+
+
+func _fill_ellipse(image, center, radius, color):
+	if radius.x <= 0.0 or radius.y <= 0.0:
+		return
+	var start_x = int(max(0, floor(center.x - radius.x)))
+	var end_x = int(min(image.get_width() - 1, ceil(center.x + radius.x)))
+	var start_y = int(max(0, floor(center.y - radius.y)))
+	var end_y = int(min(image.get_height() - 1, ceil(center.y + radius.y)))
+	for y in range(start_y, end_y + 1):
+		for x in range(start_x, end_x + 1):
+			var dx = (float(x) + 0.5 - center.x) / radius.x
+			var dy = (float(y) + 0.5 - center.y) / radius.y
+			if dx * dx + dy * dy <= 1.0:
+				image.set_pixel(x, y, color)
+
+
+func _blend_ellipse(image, center, radius, color):
+	if radius.x <= 0.0 or radius.y <= 0.0:
+		return
+	var start_x = int(max(0, floor(center.x - radius.x)))
+	var end_x = int(min(image.get_width() - 1, ceil(center.x + radius.x)))
+	var start_y = int(max(0, floor(center.y - radius.y)))
+	var end_y = int(min(image.get_height() - 1, ceil(center.y + radius.y)))
+	for y in range(start_y, end_y + 1):
+		for x in range(start_x, end_x + 1):
+			var dx = (float(x) + 0.5 - center.x) / radius.x
+			var dy = (float(y) + 0.5 - center.y) / radius.y
+			var distance = dx * dx + dy * dy
+			if distance <= 1.0:
+				var alpha = color.a * (1.0 - distance)
+				_blend_pixel(image, x, y, Color(color.r, color.g, color.b, alpha))
+
+
+func _draw_line(image, from_pos, to_pos, color, width):
+	var distance = from_pos.distance_to(to_pos)
+	var steps = int(max(1.0, ceil(distance)))
+	var radius = max(0.5, float(width) * 0.5)
+	for step in range(steps + 1):
+		var t = float(step) / float(steps)
+		_fill_circle(image, from_pos.lerp(to_pos, t), radius, color)
+
+
+func _blend_pixel(image, x, y, color):
+	var dst = image.get_pixel(x, y)
+	var a = clamp(color.a, 0.0, 1.0)
+	var out_alpha = a + dst.a * (1.0 - a)
+	if out_alpha <= 0.0:
+		image.set_pixel(x, y, Color(0, 0, 0, 0))
+		return
+	var out = Color(
+		(color.r * a + dst.r * dst.a * (1.0 - a)) / out_alpha,
+		(color.g * a + dst.g * dst.a * (1.0 - a)) / out_alpha,
+		(color.b * a + dst.b * dst.a * (1.0 - a)) / out_alpha,
+		out_alpha
+	)
+	image.set_pixel(x, y, out)
 
 
 func _clear_bottom_margin(image):
@@ -337,11 +565,8 @@ func _parse_palette(values):
 	return palette
 
 
-func _placeholder_color(hash_value, palette, offset):
-	if palette.is_empty():
-		return Color(1, 1, 1, 1)
-	var index = abs(hash_value + offset) % palette.size()
-	var color = palette[index]
+func _p(hex):
+	var color = Color.html(hex)
 	color.a = 1.0
 	return color
 
@@ -369,10 +594,3 @@ func _project_path(path):
 	if path.begins_with("res://") or path.begins_with("user://") or path.begins_with("/"):
 		return path
 	return "res://" + path
-
-
-func _stable_hash(text):
-	var hash_value = 2166136261
-	for index in range(text.length()):
-		hash_value = int((hash_value ^ text.unicode_at(index)) * 16777619) & 0x7fffffff
-	return hash_value
