@@ -8,7 +8,7 @@ const PHASE1_CORE_DEMO = "phase1_core_demo"
 static func get_phase1_core_demo():
 	return {
 		"fixture_id": PHASE1_CORE_DEMO,
-		"board_size": Vector2i(Balance.BOARD_W, Balance.BOARD_H),
+		"board_size": Vector2i(7, 7),
 		"mines": [
 			Vector2i(0, 1),
 			Vector2i(1, 1),

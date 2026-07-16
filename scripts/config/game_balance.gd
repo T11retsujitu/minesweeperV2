@@ -3,6 +3,10 @@ extends RefCounted
 const BOARD_W = 7
 const BOARD_H = 7
 const MINE_COUNT = 9
+# ランダム戦の盤面(fixture は BOARD_W/BOARD_H の 7×7 のまま)
+const RANDOM_BOARD_W = 12
+const RANDOM_BOARD_H = 12
+const RANDOM_MINE_COUNT = 26 # ≈18.1%。7×7 の 9/49≈18.4% と同等の密度
 
 const EXPLOSION_CENTER_DAMAGE = 4
 const EXPLOSION_ADJACENT_DAMAGE = 2

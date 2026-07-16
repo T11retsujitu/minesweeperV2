@@ -26,6 +26,8 @@ var preview_damage_map = {}
 var preview_cells = []
 var board_slot = null
 var refit_focus_world = null
+var board_w = Balance.BOARD_W
+var board_h = Balance.BOARD_H
 
 
 func _ready():
@@ -33,6 +35,8 @@ func _ready():
 
 
 func update_from_snapshot(snapshot, debug_show_mines):
+	var next_board_w = int(snapshot.get("board_width", board_w))
+	var next_board_h = int(snapshot.get("board_height", board_h))
 	var enemy_position = snapshot["enemy_position"]
 	var enemy_visible = int(snapshot["enemy_hp"]) > 0
 	var is_avatar = str(snapshot.get("ruleset", "")) == "phase2_avatar"
@@ -44,7 +48,9 @@ func update_from_snapshot(snapshot, debug_show_mines):
 
 	refit_focus_world = null
 	if is_avatar:
-		refit_focus_world = ViewConfig.cell_center(player_position)
+		refit_focus_world = ViewConfig.entity_anchor(player_position)
+	if next_board_w != board_w or next_board_h != board_h:
+		_resize_board(next_board_w, next_board_h)
 
 	enemy_token.set_display(enemy_visible, enemy_position, int(snapshot["enemy_countdown"]))
 	player_token.set_display(is_avatar, player_position)
@@ -90,7 +96,7 @@ func refit_to_slot(value = null):
 		board_slot = value
 	if camera_rig == null or board_slot == null:
 		return
-	camera_rig.refit(Balance.BOARD_W, Balance.BOARD_H, board_slot.get_global_rect(), refit_focus_world)
+	camera_rig.refit(board_w, board_h, board_slot.get_global_rect(), refit_focus_world)
 
 
 func debug_camera_state():
@@ -197,7 +203,7 @@ func debug_cell_canvas_position(coord):
 
 
 func is_coord_on_board(coord):
-	return coord.x >= 0 and coord.y >= 0 and coord.x < Balance.BOARD_W and coord.y < Balance.BOARD_H
+	return coord.x >= 0 and coord.y >= 0 and coord.x < board_w and coord.y < board_h
 
 
 func _build_world():
@@ -210,15 +216,7 @@ func _build_world():
 	entity_layer.y_sort_enabled = true
 	add_child(entity_layer)
 
-	for y in range(Balance.BOARD_H):
-		for x in range(Balance.BOARD_W):
-			var coord = Vector2i(x, y)
-			var cell = CellNode.new()
-			cell.name = "Cell_%d_%d" % [x, y]
-			cell.set_coord(coord)
-			cell.position = ViewConfig.world_pos(coord)
-			ground_layer.add_child(cell)
-			cells[coord] = cell
+	_build_cell_grid()
 
 	enemy_token = EnemyToken.new()
 	enemy_token.name = "EnemyToken"
@@ -239,6 +237,36 @@ func _build_world():
 	input_node.tapped.connect(_on_input_tapped)
 	input_node.long_pressed.connect(_on_input_long_pressed)
 	add_child(input_node)
+
+
+func _resize_board(next_board_w, next_board_h):
+	board_w = next_board_w
+	board_h = next_board_h
+	_clear_cell_grid()
+	_build_cell_grid()
+	refit_to_slot()
+
+
+func _clear_cell_grid():
+	for cell in cells.values():
+		if cell != null and cell.has_method("kill_tweens"):
+			cell.kill_tweens()
+	for child in ground_layer.get_children():
+		ground_layer.remove_child(child)
+		child.queue_free()
+	cells = {}
+
+
+func _build_cell_grid():
+	for y in range(board_h):
+		for x in range(board_w):
+			var coord = Vector2i(x, y)
+			var cell = CellNode.new()
+			cell.name = "Cell_%d_%d" % [x, y]
+			cell.set_coord(coord)
+			cell.position = ViewConfig.world_pos(coord)
+			ground_layer.add_child(cell)
+			cells[coord] = cell
 
 
 func _on_input_tapped(coord):

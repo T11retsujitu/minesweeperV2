@@ -188,6 +188,18 @@ func play_flag_pop(is_flagged):
 	flag_pop_tween.finished.connect(_on_flag_pop_finished)
 
 
+func kill_tweens():
+	if flash_tween != null:
+		flash_tween.kill()
+		flash_tween = null
+	if reveal_pop_tween != null:
+		reveal_pop_tween.kill()
+		reveal_pop_tween = null
+	if flag_pop_tween != null:
+		flag_pop_tween.kill()
+		flag_pop_tween = null
+
+
 func _draw():
 	var rect = _tile_rect()
 	draw_style_box(_background_style(), rect)

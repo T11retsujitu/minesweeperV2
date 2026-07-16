@@ -26,7 +26,10 @@ static func create_fixture_state(fixture_id = Fixtures.PHASE1_CORE_DEMO, ruleset
 
 static func create_state(mode, seed_value, first_reveal_cell = null, ruleset = CombatState.RULESET_PHASE1):
 	if mode == CombatState.MODE_RANDOM:
-		return create_random_state(seed_value, first_reveal_cell, null, ruleset)
+		var board_config = null
+		if ruleset == CombatState.RULESET_AVATAR:
+			board_config = _random_board_config()
+		return create_random_state(seed_value, first_reveal_cell, null, ruleset, board_config)
 	return create_fixture_state(Fixtures.PHASE1_CORE_DEMO, ruleset)
 
 
@@ -58,27 +61,31 @@ static func ensure_first_reveal_safe(state, cell):
 	return true
 
 
-static func create_random_state(seed_value, first_reveal_cell = null, max_tries = null, ruleset = CombatState.RULESET_PHASE1):
+static func create_random_state(seed_value, first_reveal_cell = null, max_tries = null, ruleset = CombatState.RULESET_PHASE1, board_config = null):
 	var tries = Balance.GENERATION_MAX_TRIES
 	if max_tries != null:
 		tries = max_tries
+	var config = _normalized_board_config(board_config)
+	var board_w = int(config["w"])
+	var board_h = int(config["h"])
+	var mine_count = int(config["mines"])
 	var rng = RandomNumberGenerator.new()
 	rng.seed = seed_value
 	for _attempt in range(tries):
-		var enemy_position = _random_enemy_position(rng)
+		var enemy_position = _random_enemy_position(rng, board_w, board_h)
 		var zone_coords = _zone_coords(enemy_position)
 		var zone_mines = _take_random(rng, _without_coord(zone_coords, enemy_position), Balance.ENEMY_ZONE_MINES)
-		var outside_mines = _take_random(rng, _outside_zone_coords(zone_coords), Balance.MINE_COUNT - Balance.ENEMY_ZONE_MINES)
+		var outside_mines = _take_random(rng, _outside_zone_coords(zone_coords, board_w, board_h), mine_count - Balance.ENEMY_ZONE_MINES)
 		var mines = []
 		mines.append_array(zone_mines)
 		mines.append_array(outside_mines)
-		if mines.size() != Balance.MINE_COUNT:
+		if mines.size() != mine_count:
 			continue
 		if first_reveal_cell != null:
-			if not _apply_first_reveal_safety(rng, mines, first_reveal_cell, enemy_position):
+			if not _apply_first_reveal_safety(rng, mines, first_reveal_cell, enemy_position, board_w, board_h):
 				continue
-		var state = _state_from_random_data(seed_value, enemy_position, mines)
-		if _is_valid_random_state(state):
+		var state = _state_from_random_data(seed_value, enemy_position, mines, board_w, board_h)
+		if _is_valid_random_state(state, mine_count):
 			state.ruleset = ruleset
 			if ruleset == CombatState.RULESET_AVATAR:
 				_apply_random_avatar_start(state, rng)
@@ -90,17 +97,17 @@ static func create_random_state(seed_value, first_reveal_cell = null, max_tries 
 	return fallback
 
 
-static func _state_from_random_data(seed_value, enemy_position, mines):
+static func _state_from_random_data(seed_value, enemy_position, mines, board_w, board_h):
 	var board = BoardModel.new()
-	board.setup(Balance.BOARD_W, Balance.BOARD_H, mines, [enemy_position])
+	board.setup(board_w, board_h, mines, [enemy_position])
 	board.set_enemy_position(enemy_position)
 	var enemy = EnemyModel.new(enemy_position, Balance.ENEMY_MAX_HP)
 	var player = PlayerModel.new()
 	return CombatState.new(board, enemy, player, seed_value, CombatState.MODE_RANDOM)
 
 
-static func _is_valid_random_state(state):
-	if state.board.mine_count() != Balance.MINE_COUNT:
+static func _is_valid_random_state(state, mine_count):
+	if state.board.mine_count() != mine_count:
 		return false
 	var enemy_cell = state.board.get_cell(state.enemy.position)
 	if enemy_cell == null or enemy_cell.contains_mine or not enemy_cell.is_revealed():
@@ -120,7 +127,7 @@ static func _apply_random_avatar_start(state, rng):
 static func _avatar_start_candidates(state):
 	var result = []
 	var zone_coords = _zone_coords(state.enemy.position)
-	for coord in _all_coords():
+	for coord in _all_coords(state.board.width, state.board.height):
 		if coord == state.enemy.position or zone_coords.has(coord):
 			continue
 		var cell = state.board.get_cell(coord)
@@ -129,17 +136,17 @@ static func _avatar_start_candidates(state):
 	return result
 
 
-static func _random_enemy_position(rng):
+static func _random_enemy_position(rng, board_w, board_h):
 	var min_coord = Balance.EXPLOSION_RADIUS_CHEBYSHEV
-	var max_x = Balance.BOARD_W - Balance.EXPLOSION_RADIUS_CHEBYSHEV - 1
-	var max_y = Balance.BOARD_H - Balance.EXPLOSION_RADIUS_CHEBYSHEV - 1
+	var max_x = board_w - Balance.EXPLOSION_RADIUS_CHEBYSHEV - 1
+	var max_y = board_h - Balance.EXPLOSION_RADIUS_CHEBYSHEV - 1
 	return Vector2i(rng.randi_range(min_coord, max_x), rng.randi_range(min_coord, max_y))
 
 
-static func _all_coords():
+static func _all_coords(board_w, board_h):
 	var result = []
-	for y in range(Balance.BOARD_H):
-		for x in range(Balance.BOARD_W):
+	for y in range(board_h):
+		for x in range(board_w):
 			result.append(Vector2i(x, y))
 	return result
 
@@ -152,9 +159,9 @@ static func _zone_coords(enemy_position):
 	return result
 
 
-static func _outside_zone_coords(zone_coords):
+static func _outside_zone_coords(zone_coords, board_w, board_h):
 	var result = []
-	for coord in _all_coords():
+	for coord in _all_coords(board_w, board_h):
 		if not zone_coords.has(coord):
 			result.append(coord)
 	return result
@@ -178,7 +185,7 @@ static func _take_random(rng, source_coords, count):
 	return result
 
 
-static func _apply_first_reveal_safety(rng, mines, first_reveal_cell, enemy_position):
+static func _apply_first_reveal_safety(rng, mines, first_reveal_cell, enemy_position, board_w, board_h):
 	if not mines.has(first_reveal_cell):
 		return true
 
@@ -189,7 +196,7 @@ static func _apply_first_reveal_safety(rng, mines, first_reveal_cell, enemy_posi
 			if coord != first_reveal_cell and not mines.has(coord):
 				relocation_pool.append(coord)
 	else:
-		for coord in _outside_zone_coords(zone_coords):
+		for coord in _outside_zone_coords(zone_coords, board_w, board_h):
 			if coord != first_reveal_cell and not mines.has(coord):
 				relocation_pool.append(coord)
 
@@ -208,7 +215,7 @@ static func _first_reveal_relocation_pool(state, first_reveal_cell):
 	if zone_coords.has(first_reveal_cell):
 		source_coords = _without_coord(zone_coords, state.enemy.position)
 	else:
-		source_coords = _outside_zone_coords(zone_coords)
+		source_coords = _outside_zone_coords(zone_coords, state.board.width, state.board.height)
 
 	var relocation_pool = []
 	for coord in source_coords:
@@ -228,3 +235,25 @@ static func _count_zone_mines(mine_coords, enemy_position):
 		if zone_coords.has(coord):
 			count += 1
 	return count
+
+
+static func _random_board_config():
+	return {
+		"w": Balance.RANDOM_BOARD_W,
+		"h": Balance.RANDOM_BOARD_H,
+		"mines": Balance.RANDOM_MINE_COUNT,
+	}
+
+
+static func _normalized_board_config(board_config):
+	if board_config == null:
+		return {
+			"w": Balance.BOARD_W,
+			"h": Balance.BOARD_H,
+			"mines": Balance.MINE_COUNT,
+		}
+	return {
+		"w": int(board_config.get("w", Balance.BOARD_W)),
+		"h": int(board_config.get("h", Balance.BOARD_H)),
+		"mines": int(board_config.get("mines", Balance.MINE_COUNT)),
+	}

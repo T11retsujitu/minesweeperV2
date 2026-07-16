@@ -167,6 +167,8 @@ func to_snapshot():
 		"enemy_countdown": enemy.countdown if enemy != null else 0,
 		"enemy_position": enemy.position if enemy != null else Vector2i.ZERO,
 		"cells": board_cells,
+		"board_width": board.width if board != null else 0,
+		"board_height": board.height if board != null else 0,
 		"action_log": action_log.duplicate(),
 		"used_fixture_fallback": used_fixture_fallback,
 		"first_reveal_done": first_reveal_done,

@@ -12,6 +12,7 @@ const TestRecoveryPhase = preload("res://tests/test_recovery_phase.gd")
 const TestTerritory = preload("res://tests/test_territory.gd")
 const TestAttackVerbs = preload("res://tests/test_attack_verbs.gd")
 const TestCameraMath = preload("res://tests/test_camera_math.gd")
+const TestGeneratorLarge = preload("res://tests/test_generator_large.gd")
 
 var total = 0
 var failed = 0
@@ -32,6 +33,7 @@ func _initialize():
 		TestTerritory.new(),
 		TestAttackVerbs.new(),
 		TestCameraMath.new(),
+		TestGeneratorLarge.new(),
 	]
 	for test in tests:
 		test.run(self)
