@@ -7,12 +7,17 @@ const CombatState = preload("res://scripts/domain/combat_state.gd")
 const FxConfig = preload("res://scripts/presentation/fx_config.gd")
 const FxLayer = preload("res://scripts/presentation/fx_layer.gd")
 const HpBar = preload("res://scripts/presentation/hp_bar.gd")
-const BoardViewScene = preload("res://scenes/battle/board_view.tscn")
+const BoardWorld = preload("res://scripts/presentation/board_world.gd")
 
 var controller = BattleController.new(CombatState.RULESET_AVATAR)
 var debug_show_mines = false
 
 var root = null
+var background_layer = null
+var hud_layer = null
+var fx_canvas_layer = null
+var overlay_layer = null
+var board_slot = null
 var board_view = null
 var fx_layer = null
 var feedback = null
@@ -45,6 +50,7 @@ var terminal_tween = null
 
 
 func _ready():
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_build_layout()
 	feedback = BattleFeedback.new()
 	feedback.setup({
@@ -115,6 +121,7 @@ func debug_set_show_mines(enabled):
 
 
 func debug_cell_canvas_position(coord):
+	_refit_board_to_slot()
 	return board_view.debug_cell_canvas_position(coord)
 
 
@@ -142,6 +149,7 @@ func _on_events_emitted(events):
 func _on_state_reset(_state):
 	if fx_layer != null:
 		fx_layer.clear_all()
+	_refit_board_to_slot()
 	_sync_hp_bars_immediate(controller.get_snapshot())
 	_hide_toast()
 	_hide_preview()
@@ -555,31 +563,66 @@ func _on_mine_toggle_toggled(value):
 
 
 func _build_layout():
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	background_layer = CanvasLayer.new()
+	background_layer.name = "BackgroundLayer"
+	background_layer.layer = -1
+	add_child(background_layer)
+
 	var background = ColorRect.new()
 	background.color = Color(0.08, 0.10, 0.11)
 	background.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(background)
+	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	background_layer.add_child(background)
+
+	board_view = BoardWorld.new()
+	board_view.name = "BoardWorld"
+	board_view.cell_tapped.connect(_on_cell_tapped)
+	board_view.cell_long_pressed.connect(_on_cell_long_pressed)
+	add_child(board_view)
+
+	hud_layer = CanvasLayer.new()
+	hud_layer.name = "HudLayer"
+	hud_layer.layer = 1
+	add_child(hud_layer)
 
 	root = VBoxContainer.new()
+	root.name = "HudRoot"
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_theme_constant_override("separation", 10)
 	root.offset_left = 20
 	root.offset_top = 18
 	root.offset_right = -20
 	root.offset_bottom = -18
-	add_child(root)
+	hud_layer.add_child(root)
 
 	_build_hud()
 	_build_board_area()
 	_build_controls()
 	_build_log()
+
+	fx_canvas_layer = CanvasLayer.new()
+	fx_canvas_layer.name = "FxLayer"
+	fx_canvas_layer.layer = 2
+	add_child(fx_canvas_layer)
 	fx_layer = FxLayer.new()
-	add_child(fx_layer)
+	fx_layer.name = "FxRoot"
+	fx_canvas_layer.add_child(fx_layer)
 	board_view.set_fx_layer(fx_layer)
+	fx_layer.set_camera_rig(board_view.get_camera_rig())
+
+	overlay_layer = CanvasLayer.new()
+	overlay_layer.name = "OverlayLayer"
+	overlay_layer.layer = 3
+	add_child(overlay_layer)
 	_build_preview_overlay()
 	_build_help_overlay()
 	_build_terminal_overlay()
 	_build_toast()
+	board_view.set_board_slot(board_slot)
+	_request_board_refit()
 
 
 func _build_hud():
@@ -617,14 +660,32 @@ func _build_hud():
 
 
 func _build_board_area():
-	var center = CenterContainer.new()
-	center.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root.add_child(center)
+	board_slot = Control.new()
+	board_slot.name = "BoardSlot"
+	board_slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	board_slot.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	board_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	board_slot.resized.connect(_on_board_slot_resized)
+	root.add_child(board_slot)
 
-	board_view = BoardViewScene.instantiate()
-	board_view.cell_tapped.connect(_on_cell_tapped)
-	board_view.cell_long_pressed.connect(_on_cell_long_pressed)
-	center.add_child(board_view)
+
+func _on_board_slot_resized():
+	_refit_board_to_slot()
+
+
+func _request_board_refit():
+	_refit_board_after_layout.call_deferred()
+
+
+func _refit_board_after_layout():
+	await get_tree().process_frame
+	_refit_board_to_slot()
+
+
+func _refit_board_to_slot():
+	if board_view == null or board_slot == null:
+		return
+	board_view.refit_to_slot(board_slot)
 
 
 func _build_controls():
@@ -678,7 +739,7 @@ func _build_log():
 
 func _build_preview_overlay():
 	preview_overlay = _make_overlay()
-	add_child(preview_overlay)
+	overlay_layer.add_child(preview_overlay)
 
 	var panel = _make_overlay_panel(Vector2(430, 360))
 	preview_overlay.add_child(panel)
@@ -706,7 +767,7 @@ func _build_preview_overlay():
 
 func _build_help_overlay():
 	help_overlay = _make_overlay()
-	add_child(help_overlay)
+	overlay_layer.add_child(help_overlay)
 
 	var panel = _make_overlay_panel(Vector2(560, 420))
 	help_overlay.add_child(panel)
@@ -730,7 +791,7 @@ func _build_help_overlay():
 
 func _build_terminal_overlay():
 	terminal_overlay = _make_overlay()
-	add_child(terminal_overlay)
+	overlay_layer.add_child(terminal_overlay)
 
 	terminal_panel = _make_overlay_panel(Vector2(430, 340))
 	terminal_overlay.add_child(terminal_panel)
@@ -764,7 +825,7 @@ func _build_toast():
 	toast_panel.offset_bottom = 142.0
 	toast_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	toast_panel.visible = false
-	add_child(toast_panel)
+	overlay_layer.add_child(toast_panel)
 
 	var margin = _make_margin(10)
 	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE

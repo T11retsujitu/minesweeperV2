@@ -4,11 +4,16 @@ const FxConfig = preload("res://scripts/presentation/fx_config.gd")
 const DamageFloat = preload("res://scripts/presentation/damage_float.gd")
 
 var fx_generation = 0
+var camera_rig = null
 
 
 func _ready():
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
+func set_camera_rig(value):
+	camera_rig = value
 
 
 func spawn_damage_float(global_pos, label_text, color):
@@ -56,25 +61,10 @@ func fire_projectile(from_global, to_global):
 
 
 func shake(amplitude_scale := 1.0):
-	var generation = fx_generation
-	var elapsed = 0.0
-	var step_sec = 0.025
-	var rng = RandomNumberGenerator.new()
-	var viewport = get_viewport()
-	while elapsed < FxConfig.SHAKE_DURATION and generation == fx_generation:
-		var transform = viewport.canvas_transform
-		transform.origin = Vector2(
-			rng.randf_range(-FxConfig.SHAKE_AMPLITUDE, FxConfig.SHAKE_AMPLITUDE),
-			rng.randf_range(-FxConfig.SHAKE_AMPLITUDE, FxConfig.SHAKE_AMPLITUDE)
-		) * amplitude_scale
-		viewport.canvas_transform = transform
-		var wait_sec = min(step_sec, FxConfig.SHAKE_DURATION - elapsed)
-		await get_tree().create_timer(wait_sec).timeout
-		elapsed += wait_sec
-	if generation == fx_generation:
-		var final_transform = viewport.canvas_transform
-		final_transform.origin = Vector2.ZERO
-		viewport.canvas_transform = final_transform
+	if camera_rig != null:
+		await camera_rig.shake(amplitude_scale)
+	else:
+		await get_tree().create_timer(FxConfig.SHAKE_DURATION).timeout
 
 
 func hit_stop():
@@ -112,7 +102,8 @@ func spawn_explosion_particles(global_pos, is_center, color_override = null):
 
 func clear_all():
 	fx_generation += 1
+	if camera_rig != null:
+		camera_rig.reset_shake()
 	for child in get_children():
 		child.queue_free()
 	Engine.time_scale = 1.0
-	get_viewport().canvas_transform = Transform2D.IDENTITY

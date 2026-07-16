@@ -38,6 +38,7 @@
 - **UX改良 M2b クリア二層化 presentation(2026-07-16)**: combat_won トースト(非ブロッキング2秒)/ recovery 中 HUD(Countdown stopped・Enemy: defeated・Board n/N・Finishボタン)/ リザルト画面(VICTORY/PERFECT CLEAR/DEFEAT+Turns/HP/Board%/Misfires 統計、Perfect時金演出)/ main.gd に `finish` デバッグコマンド = **presentation層のみ・テスト501不変・WSLgスクショ検証(recovery HUD/リザルト統計)**
 - **UX改良 M3a 縄張りルール(§7.4、2026-07-16)**: `TERRITORY_RADIUS=2`(game_balance)。avatar のみ、アクション解決後のプレイヤー位置が縄張り外ならカウントダウン凍結(`countdown_paused`)・敵攻撃なし。盤面に縄張りティント常時表示(敵死亡で消灯)+HUD「Countdown: N (paused)」。**test_avatar_walkthrough 無変更のまま緑=回帰証明。テスト564件**。設計判断 D31
 - **UX改良 M3b 攻撃動詞(§7.4、2026-07-16)**: bump攻撃(隣接生存敵タップ=1ダメ+生存時のみ反撃2、bumpableハイライト、突進演出)/ 地雷除去(隣接フラグ済み限定、除去+開放+数字再計算+敵2ダメ、起爆プレビューにDefuseボタン)。BUMP_DAMAGE/BUMP_COUNTER_DAMAGE/DEFUSE_DAMAGE は game_balance。**起爆優位は番犬テストで固定**(bump単騎不成立の不等式含む)。アグロ線オラクル: 起爆×2→bump×2の4Tでrecovery到達・最終HP6。**テスト636件**・凍結テスト diff ゼロ。設計判断 D32〜D33
+- **盤面 Node2D 移行(カメラ/大型盤面/2.5D計画フェーズA、2026-07-16)**: 盤面描画を Control(GridContainer+cell_view)から Node2D ワールドへ等価移行。新規: `view_config.gd`(セル88px・座標規約: world_pos/cell_center/entity_anchor)/ `board_world.gd`(board_view.gd 後継、**公開API・シグナル同名維持**)/ `cell_node.gd`(custom draw 集約)/ `enemy_token.gd`・`player_token.gd`(EntityLayer, y_sort_enabled)/ `camera_rig.gd`(Camera2D 固定フィット+shake=offset振動)/ `board_input.gd`(_unhandled_input、押下時セル固定、DEVICE_ID_EMULATION除外)。battle_screen は CanvasLayer 構成(背景-1/HUD 1/FX 2/オーバーレイ3)に再編、盤面スロットは空スペーサー Control。fx_layer の shake/clear_all は canvas_transform 直叩きを廃止し camera_rig 委譲。**注意: Main ルート Control(main.gd)の mouse_filter=IGNORE 必須**(STOP だと全盤面クリックを飲む。2d34a2a と同型の退行を検証ゲートで検出・修正済み)。検証: テスト636不変 / WSLg 実入力(click/rclick/presshold、四隅、勝利ライン7T完走 HP6/10=オラクル一致、random、retry連打)/ FX位置(敵セルへのダメージフロート)目視。デバッグコマンド `presshold:x,y` 追加。カメラ操作(パン/ズーム)・大型盤面はフェーズB/C(計画: `~/.claude/plans/2d-shiny-kitten.md` 相当、方針: カメラ+12×12ランダム+3/4見下ろし2.5D)
 - **ドキュメント**: README / implementation-plan / architecture / decisions(D1〜D33)/ playtest-checklist / pv-vision-roadmap 完備
 
 ## 4. できていない部分
@@ -102,6 +103,6 @@
 1. コードを書くタスクは Codex MCP へ。プロンプトに: 参照ドキュメント指定+該当仕様の埋め込み / 変更禁止領域の明示(domain等を凍結する場合)/ 受入コマンド / 「提出前に自分でテスト実行して exit 0 確認」を含める。Phase 1 のスレッドは完了済み — 新タスクは新スレッドで開始してよい(このファイルと implementation-plan を読ませれば文脈は足りる)
 2. Claude 検証ゲート: テスト独立実行 → 変更ファイルを Read してレビュー(不変条件チェック)→ UI変更なら WSLg スクショ検証
 3. スクショ/操作検証: `~/.local/bin/godot --path . --audio-driver Dummy -- --debug-actions="..." --debug-screenshot=<path> --debug-quit-frames=60`
-   - コマンド: `tap:x,y` `flag:x,y`(controller直呼び)/ `click:x,y` `rclick:x,y`(実入力パイプライン)/ `confirm` `cancel` `retry` `wait:N` `mode:fixed|random` `sameseed` `newseed` `help` `mines:on|off`
+   - コマンド: `tap:x,y` `flag:x,y`(controller直呼び)/ `click:x,y` `rclick:x,y` `presshold:x,y`(実入力パイプライン)/ `confirm` `cancel` `retry` `finish` `wait:N` `mode:fixed|random` `sameseed` `newseed` `help` `mines:on|off`
    - 入力バグの検証は必ず `click:`/`rclick:`(実経路)を使う。`tap:` はドメイン検証用(過去に `tap:` のみで検証して実入力バグを見逃した実績あり → 修正 `2d34a2a`)
 4. マイルストーン毎にコミット(push禁止)→ Windowsコピー rsync → 本ファイル更新

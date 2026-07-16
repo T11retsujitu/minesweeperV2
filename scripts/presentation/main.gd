@@ -1,6 +1,7 @@
 extends Control
 
 const BattleScreenScene = preload("res://scenes/battle/battle_screen.tscn")
+const Balance = preload("res://scripts/config/game_balance.gd")
 
 var battle_screen = null
 var debug_screenshot_path = ""
@@ -9,6 +10,7 @@ var debug_actions_text = ""
 
 
 func _ready():
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	battle_screen = BattleScreenScene.instantiate()
 	battle_screen.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(battle_screen)
@@ -60,6 +62,8 @@ func _run_debug_command(command):
 		await _push_mouse_click(_parse_coord(command.substr("click:".length())), MOUSE_BUTTON_LEFT)
 	elif command.begins_with("rclick:"):
 		await _push_mouse_click(_parse_coord(command.substr("rclick:".length())), MOUSE_BUTTON_RIGHT)
+	elif command.begins_with("presshold:"):
+		await _push_mouse_presshold(_parse_coord(command.substr("presshold:".length())))
 	elif command == "mode:fixed":
 		battle_screen.debug_set_mode("fixed")
 	elif command == "mode:random":
@@ -100,6 +104,25 @@ func _push_mouse_click(coord, button_index):
 
 	var release = InputEventMouseButton.new()
 	release.button_index = button_index
+	release.pressed = false
+	release.position = canvas_position
+	release.global_position = canvas_position
+	get_viewport().push_input(release, true)
+	await get_tree().process_frame
+
+
+func _push_mouse_presshold(coord):
+	var canvas_position = battle_screen.debug_cell_canvas_position(coord)
+	var press = InputEventMouseButton.new()
+	press.button_index = MOUSE_BUTTON_LEFT
+	press.pressed = true
+	press.position = canvas_position
+	press.global_position = canvas_position
+	get_viewport().push_input(press, true)
+	await get_tree().create_timer(Balance.LONG_PRESS_SEC + 0.1).timeout
+
+	var release = InputEventMouseButton.new()
+	release.button_index = MOUSE_BUTTON_LEFT
 	release.pressed = false
 	release.position = canvas_position
 	release.global_position = canvas_position

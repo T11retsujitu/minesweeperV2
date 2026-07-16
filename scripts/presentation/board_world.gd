@@ -1,23 +1,34 @@
-extends Control
+extends Node2D
 
 signal cell_tapped(coord)
 signal cell_long_pressed(coord)
 
 const Balance = preload("res://scripts/config/game_balance.gd")
 const FxConfig = preload("res://scripts/presentation/fx_config.gd")
-const CellViewScene = preload("res://scenes/battle/cell_view.tscn")
+const ViewConfig = preload("res://scripts/presentation/view_config.gd")
+const CellNode = preload("res://scripts/presentation/cell_node.gd")
+const EnemyToken = preload("res://scripts/presentation/enemy_token.gd")
+const PlayerToken = preload("res://scripts/presentation/player_token.gd")
+const CameraRig = preload("res://scripts/presentation/camera_rig.gd")
+const BoardInput = preload("res://scripts/presentation/board_input.gd")
 
-var grid = null
+var ground_layer = null
+var entity_layer = null
+var camera_rig = null
+var input_node = null
+var enemy_token = null
+var player_token = null
 var cells = {}
 var input_enabled = true
 var fx_layer = null
 var preview_center = null
 var preview_damage_map = {}
 var preview_cells = []
+var board_slot = null
 
 
 func _ready():
-	_build_grid()
+	_build_world()
 
 
 func update_from_snapshot(snapshot, debug_show_mines):
@@ -29,19 +40,20 @@ func update_from_snapshot(snapshot, debug_show_mines):
 	var revealable_cells = snapshot.get("revealable_cells", [])
 	var bumpable_cells = snapshot.get("bumpable_cells", [])
 	var territory_cells = snapshot.get("territory_cells", [])
+
+	enemy_token.set_display(enemy_visible, enemy_position, int(snapshot["enemy_countdown"]))
+	player_token.set_display(is_avatar, player_position)
+
 	for cell_data in snapshot["cells"]:
 		var coord = cell_data["coord"]
 		if not cells.has(coord):
 			continue
 		var previewed = preview_cells.has(coord)
 		var options = {
-			"enemy_visible": enemy_visible and coord == enemy_position,
-			"enemy_countdown": int(snapshot["enemy_countdown"]),
 			"debug_mine": debug_show_mines and cell_data["contains_mine"] and cell_data["reveal_state"] == "hidden",
 			"previewed": previewed,
 			"preview_center": preview_center != null and coord == preview_center,
 			"preview_damage": preview_damage_map.get(coord, ""),
-			"player_here": is_avatar and coord == player_position,
 			"movable": is_avatar and movable_cells.has(coord),
 			"revealable": is_avatar and revealable_cells.has(coord),
 			"bumpable": is_avatar and bumpable_cells.has(coord),
@@ -51,13 +63,30 @@ func update_from_snapshot(snapshot, debug_show_mines):
 
 
 func set_input_enabled(value):
-	input_enabled = value
-	for coord in cells.keys():
-		cells[coord].set_input_enabled(value)
+	input_enabled = bool(value)
+	if input_node != null:
+		input_node.set_enabled(input_enabled)
 
 
 func set_fx_layer(value):
 	fx_layer = value
+
+
+func set_board_slot(value):
+	board_slot = value
+	refit_to_slot()
+
+
+func get_camera_rig():
+	return camera_rig
+
+
+func refit_to_slot(value = null):
+	if value != null:
+		board_slot = value
+	if camera_rig == null or board_slot == null:
+		return
+	camera_rig.refit(Balance.BOARD_W, Balance.BOARD_H, board_slot.get_global_rect())
 
 
 func set_preview(center, preview):
@@ -151,6 +180,68 @@ func play_defuse_flash(coord, success):
 	await get_tree().create_timer(FxConfig.DEFUSE_FLASH_SEC).timeout
 
 
+func debug_cell_canvas_position(coord):
+	if not cells.has(coord):
+		return Vector2.ZERO
+	refit_to_slot()
+	return get_global_transform_with_canvas() * ViewConfig.cell_center(coord)
+
+
+func is_coord_on_board(coord):
+	return coord.x >= 0 and coord.y >= 0 and coord.x < Balance.BOARD_W and coord.y < Balance.BOARD_H
+
+
+func _build_world():
+	ground_layer = Node2D.new()
+	ground_layer.name = "GroundLayer"
+	add_child(ground_layer)
+
+	entity_layer = Node2D.new()
+	entity_layer.name = "EntityLayer"
+	entity_layer.y_sort_enabled = true
+	add_child(entity_layer)
+
+	for y in range(Balance.BOARD_H):
+		for x in range(Balance.BOARD_W):
+			var coord = Vector2i(x, y)
+			var cell = CellNode.new()
+			cell.name = "Cell_%d_%d" % [x, y]
+			cell.set_coord(coord)
+			cell.position = ViewConfig.world_pos(coord)
+			ground_layer.add_child(cell)
+			cells[coord] = cell
+
+	enemy_token = EnemyToken.new()
+	enemy_token.name = "EnemyToken"
+	enemy_token.visible = false
+	entity_layer.add_child(enemy_token)
+
+	player_token = PlayerToken.new()
+	player_token.name = "PlayerToken"
+	player_token.visible = false
+	entity_layer.add_child(player_token)
+
+	camera_rig = CameraRig.new()
+	camera_rig.name = "BoardCamera"
+	add_child(camera_rig)
+
+	input_node = BoardInput.new()
+	input_node.name = "BoardInput"
+	input_node.tapped.connect(_on_input_tapped)
+	input_node.long_pressed.connect(_on_input_long_pressed)
+	add_child(input_node)
+
+
+func _on_input_tapped(coord):
+	if input_enabled:
+		cell_tapped.emit(coord)
+
+
+func _on_input_long_pressed(coord):
+	if input_enabled:
+		cell_long_pressed.emit(coord)
+
+
 func _explosion_ring_cells(center):
 	var targets = []
 	for y in range(center.y - Balance.EXPLOSION_RADIUS_CHEBYSHEV, center.y + Balance.EXPLOSION_RADIUS_CHEBYSHEV + 1):
@@ -171,14 +262,7 @@ func _flash_explosion_cell(coord, is_center):
 func _spawn_explosion_particles(coord, is_center):
 	if fx_layer == null:
 		return
-	var global_pos = cells[coord].get_global_rect().get_center()
-	fx_layer.spawn_explosion_particles(global_pos, is_center)
-
-
-func debug_cell_canvas_position(coord):
-	if not cells.has(coord):
-		return Vector2.ZERO
-	return cells[coord].get_global_rect().get_center()
+	fx_layer.spawn_explosion_particles(debug_cell_canvas_position(coord), is_center)
 
 
 func _reveal_waves(revealed_cells, trigger):
@@ -204,54 +288,3 @@ func _cascade_wave_gap(wave_count):
 		return 0.0
 	var gap_count = wave_count - 1
 	return min(FxConfig.FLOOD_WAVE_SEC, FxConfig.FLOOD_CASCADE_MAX_SEC / float(gap_count))
-
-
-func _build_grid():
-	var frame = PanelContainer.new()
-	frame.set_anchors_preset(Control.PRESET_FULL_RECT)
-	var frame_style = StyleBoxFlat.new()
-	frame_style.bg_color = Color(0.10, 0.13, 0.15)
-	frame_style.border_color = Color(0.30, 0.37, 0.40)
-	frame_style.border_width_left = 2
-	frame_style.border_width_top = 2
-	frame_style.border_width_right = 2
-	frame_style.border_width_bottom = 2
-	frame_style.corner_radius_top_left = 6
-	frame_style.corner_radius_top_right = 6
-	frame_style.corner_radius_bottom_left = 6
-	frame_style.corner_radius_bottom_right = 6
-	frame.add_theme_stylebox_override("panel", frame_style)
-	add_child(frame)
-
-	var margin = MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 10)
-	margin.add_theme_constant_override("margin_top", 10)
-	margin.add_theme_constant_override("margin_right", 10)
-	margin.add_theme_constant_override("margin_bottom", 10)
-	frame.add_child(margin)
-
-	grid = GridContainer.new()
-	grid.columns = Balance.BOARD_W
-	grid.add_theme_constant_override("h_separation", 4)
-	grid.add_theme_constant_override("v_separation", 4)
-	margin.add_child(grid)
-
-	for y in range(Balance.BOARD_H):
-		for x in range(Balance.BOARD_W):
-			var coord = Vector2i(x, y)
-			var cell_view = CellViewScene.instantiate()
-			cell_view.set_coord(coord)
-			cell_view.tapped.connect(_on_cell_tapped)
-			cell_view.long_pressed.connect(_on_cell_long_pressed)
-			grid.add_child(cell_view)
-			cells[coord] = cell_view
-
-
-func _on_cell_tapped(coord):
-	if input_enabled:
-		cell_tapped.emit(coord)
-
-
-func _on_cell_long_pressed(coord):
-	if input_enabled:
-		cell_long_pressed.emit(coord)
