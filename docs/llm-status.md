@@ -2,7 +2,7 @@
 
 > **読者**: 本プロジェクトを引き継ぐLLM(Claude / Codex)。人間向け説明は README.md。
 > **目的**: 最短で「何ができていて・何ができておらず・何が課題で・次に何をするか」を正確に把握させる。
-> **記載時点**: 2026-07-16, HEAD = Phase 2 盤上アバター実装コミット。**このファイルは状態が変わったら必ず更新すること。**
+> **記載時点**: 2026-07-16, HEAD = 縄張り半径1改訂(`206dbfe`)。**このファイルは状態が変わったら必ず更新すること。**
 
 ## 1. プロジェクト要約
 
@@ -20,7 +20,7 @@
 | テスト | `~/.local/bin/godot --headless --path . --script res://tests/run_tests.gd` → **1558 passed / exit 0 が正常**(旧ルール230+アバター200+回収71+縄張り63+攻撃動詞72+カメラ数学14+大型盤面生成)|
 | Windowsテストプレイ | `C:\Users\a\minesweeperV2-play\`(プレイ用コピー)+ `C:\Users\a\Godot\Godot_v4.4.1-stable_win64.exe` + デスクトップ `Play_Minesweeper.bat` |
 | Windowsコピー同期 | `rsync -a --delete --exclude='.git' --exclude='.godot' --exclude='*.md' --exclude='docs' ~/src/minesweeperV2/ /mnt/c/Users/a/minesweeperV2-play/` — **コード変更のたびに必要(自動同期なし)** |
-| Git | ブランチ main のみ。remote(origin)は空。**push 禁止**。マイルストーン毎にローカルコミット、`Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>` 付与 |
+| Git | ブランチ main のみ。origin = `https://github.com/T11retsujitu/minesweeperV2.git`(公開)。**push はユーザー明示指示時のみ**(2026-07-16 に f8bdb99 まで push 済み。以降のフェーズA〜D+縄張り半径1改訂は未push)。マイルストーン毎にローカルコミット、`Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>` 付与 |
 | Codex サンドボックス | workspace-write / approval-policy never。**ウィンドウ実行不可** → 視覚検証は Claude が WSLg で行う |
 
 ## 3. できている部分(検証方法付き)
@@ -31,7 +31,7 @@
 - **実マウス入力**: 左クリック開放・右クリック/長押しフラグ・起爆確認 = 合成イベント(`click:x,y`)を実入力パイプラインに流して検証(修正 `2d34a2a` 参照)
 - **handoff §12 完了条件**: 機能16項目・品質7項目・検証可能性3項目すべて充足
 - **演出(ジュース・パス = pv-vision-roadmap Step 1 完了)**: HPバー(ゴースト減少痕+busy中据え置き)/ ダメージフロート(-N / -N MINE! / -N ENEMY ATK、発生源セルから)/ 敵バッジのカウントダウン表示+残1で「1!」パルス / 攻撃連鎖演出(敵セル発光→弾→バー減少+小シェイク)/ 起爆演出(パーティクル+ヒットストップ+時間差リング+シェイク、誤爆1.5倍、dudは弱演出)/ 勝敗オーバーレイのフェード+スケール = **presentation層のみ・凍結領域差分ゼロ・WSLgスクショ+headless E2Eライン完走で検証**。新規: fx_config.gd(演出定数一元化)/ fx_layer.gd / damage_float.gd / hp_bar.gd / battle_feedback.gd(演出ディレクター)。同期モデル(is_busy中await→notify_effects_done)は不変。**ブロッキングawaitはSceneTreeTimerか永続ノード親のtweenのみ**(一時ノードのtween awaitはclear_all時にハングするため禁止)
-- **盤上プレイヤーアバター(Phase 2 第一弾 = pv-vision-roadmap Step 4 の核心構図)**: ruleset="phase2_avatar" で移動して開放モデルを実装。MOVE(8近傍の開放済みセルへ、1ターン)/ REVEAL(プレイヤー8近傍のみ、フラッド無制限)/ DETONATE遠隔+対プレイヤースプラッシュ(意図起爆のみ、誤爆はフラット3)/ 移動もカウントダウン消費(countdown 3のまま、新バランス定数なし)。fixture に player_start(1,3) 追加キー。UI: 菱形マーカー+movable/revealableハイライト+移動演出+攻撃着弾のアバターセル化。**攻略オラクル: 勝利7T(最終HP6)/敗北5T(test_avatar_walkthrough で全手固定)**。設計判断は decisions D22〜D27
+- **盤上プレイヤーアバター(Phase 2 第一弾 = pv-vision-roadmap Step 4 の核心構図)**: ruleset="phase2_avatar" で移動して開放モデルを実装。MOVE(8近傍の開放済みセルへ、1ターン)/ REVEAL(プレイヤー8近傍のみ、フラッド無制限)/ DETONATE遠隔+対プレイヤースプラッシュ(意図起爆のみ、誤爆はフラット3)/ 移動もカウントダウン消費(countdown 3のまま、新バランス定数なし)。fixture に player_start(1,3) 追加キー。UI: 菱形マーカー+movable/revealableハイライト+移動演出+攻撃着弾のアバターセル化。**攻略オラクル: 勝利7T/敗北5T(test_avatar_walkthrough で全手固定。導入時の最終HP6は縄張り半径1改訂後 HP8 に更新 — 下記 M3a 項参照)**。設計判断は decisions D22〜D27
 - **UX改良 M1a「読める風景」(game-design §7.5-1 の presentation 部分、2026-07-16)**: フラグ=爆弾スプライト風表示(描画プリミティブ)/ 開放セルの数字ヒートマップ(fx_config.COLOR_HEAT_LEVELS)/ 合法手ハイライト強化(alpha 0.34/0.38+2pxボーダー枠)/ HUD に Mines/Flags カウンター(snapshot から presentation 側集計)/ 敵インテント動的化 = **presentation層のみ・テスト430不変・WSLgスクショ検証**。注意: CellView 親の `_draw()` は子ノードに隠れるため、カスタム描画は `overlay_draw` 子ノード(highlight_rect 直後)の draw シグナルで行う
 - **UX改良 M1b 動的フィードバック(§7.5-4、2026-07-16)**: 開放ポップ(cell_view.play_reveal_pop、非ブロッキング)/ フラッドカスケード(board_view.play_reveal_cascade、Chebyshev距離の波・総ブロックFLOOD_CASCADE_MAX_SEC=0.45クランプ・誤爆時スキップ)/ フラグトグル演出(feedbackパス外・非ブロッキング=is_busy不使用のflag_toggled設計を維持)/ 敵撃破祝祭(金パーティクル+ENEMY DOWN!フロート+小ヒットストップ+シェイク、~0.5sブロック)= **presentation層のみ・テスト430不変・勝利ライン完走+retry連打ハング無しをWSLgで検証**
 - **UX改良 M2a クリア二層化 domain/application(§7.3、2026-07-16)**: avatar のみ敵HP0→ `combat_won` + PHASE_RECOVERY(回収フェーズ: 敵ステップ全スキップ・誤爆死は通常敗北)→ 全安全セル開放で `perfect_clear + victory{perfect:true}` / FINISH(ターン非消費)で `victory{perfect:false}`。同時死亡はD6勝利優先でrecovery非経由。死体セル通行可(D29)。snapshot に phase/accidental_mine_count/safe_cells_total/safe_cells_revealed 追加。**テスト501件**(回収到達性はグリーディウォーカーで証明)。phase1 は完全凍結(テストdiffゼロ)。設計判断 D28〜D30
@@ -51,16 +51,14 @@
 
 → Phase 2〜5 バックログは handoff §16。**着手条件 = Phase 1 プレイテストが肯定的であること(未判定)**
 
-### 4b. Phase 1 内で未完了
-- **手動プレイテスト(handoff §13 の10項目)** — 1項目相当の初回フィードバックのみ。核仮説の判定が最重要未完了タスク
-- 課題1(下記)の対応判断
+### 4b. 未完了
+- **手動プレイテスト(handoff §13 の10項目)** — 初回+二回目の部分フィードバックのみ(課題1・2は対応済み)。**核仮説の判定(起爆の手応え)が最重要未完了タスク**。現行ルール(アバター+縄張り+回収フェーズ+攻撃動詞)で再評価する
 
-## 5. 既存の課題(open)
+## 5. 既存の課題
 
-- **課題1: 敗北条件・被ダメージ原因が分かりにくい**(2026-07-16 ユーザー報告)
-  - 症状: プレイヤーHPがなぜ減ったのか分からない。「敵と遭遇したのか?」という混乱
-  - 原因分析: プレイヤーが盤面上に不在(空間的手掛かりなし)+ 攻撃演出が弱く因果(カウント0→攻撃→HP減)が画面上で分散
-  - **状態: 候補1〜3(演出強化)をジュース・パスで実装済み。ユーザー実プレイでの解消確認待ち**(候補4 = 盤上プレイヤーアバターは Phase 2 設計判断のまま)
+- **課題1: 被ダメージ原因が分かりにくい**(初回プレイテスト)— **解消済み**: 演出強化(候補1〜3、ユーザー確認済み)+盤上アバター(候補4)で対応完了
+- **課題2: 遠距離必中攻撃のストレス/攻撃範囲不明/敵の隣が開けない/敵を倒せない**(二回目プレイテスト)— **解消済み**: 縄張り可視化+圏外カウント停止(D31)+半径2→1改訂(D31改訂)+bump/地雷除去(D32/D33)。詳細は playtest-checklist.md 課題2
+- **open: 縄張り半径1の時間圧力**(D31 トレードオフ)— 圏外で長考し放題になる副作用。次回プレイテストの評価項目。対策候補: 半径2へ戻す(オラクル再導出要)/ 敵複数で面圧
 
 ### 恒常的な注意(バグではない)
 - WSLg実行時に V-Sync WARNING 1件(ドライバ制約・無害)
@@ -70,12 +68,11 @@
 
 ## 6. 残タスク(優先順)
 
-1. **アバタールールの実プレイ評価**(ユーザー)— 移動して開放モデルの手触り(移動コスト・隣接制約・スプラッシュリスク)。重すぎる場合の調整候補は decisions D25 参照
-2. **手動プレイテスト継続** — docs/playtest-checklist.md の10項目を記録。特に「起爆の手応え(核仮説)」。アバタールール前提で再評価
-3. (完了)課題1 = 演出強化(候補1〜3)+盤上アバター(候補4)で対応済み。ユーザー確認済み(演出分)
-3. プレイテスト結果に応じた `game_balance.gd` の数値調整(全数値がここに一元化されている)
-4. (完了 2026-07-16)Phase 2 UX改良 — §7.5 の 1〜4(読める風景 / クリア二層化 / 縄張り+攻撃動詞 / ポジティブ演出)をすべて実装済み(D28〜D33)。**次はユーザー実プレイで「一新されたゲームループ(縄張り・回収フェーズ・bump/除去)」の手触り評価**。敵移動は引き続き保留。アセット(画像/音)導入は pv-vision-roadmap Step 2 として未着手
-5. (運用)コード変更時: テスト実行 → Windowsコピー rsync → 必要なら本ファイル更新
+1. **実プレイ評価**(ユーザー)— 一新されたゲームループの手触り: 縄張り半径1の時間圧力 / 回収フェーズ・Perfect Clear の押し引き / bump・除去の使用感 / 12×12 の難易度・テンポ / カメラ操作感 / 起爆の手応え(核仮説、playtest-checklist の10項目を現行ルールで再評価)
+2. プレイテスト結果に応じた `game_balance.gd` の数値調整(全数値がここに一元化されている)
+3. **pv-vision-roadmap Step 2(アセット・パス)** — ドット絵タイル/敵スプライト/ピクセルフォント/SE の導入(view-spec.md の受け入れ条件に従う)。着手はユーザー判断
+4. その先の候補: 敵バリエーション・敵複数 / ラン構造(handoff Phase 4)。敵の盤上移動は保留(game-design §7.4)
+5. (運用)コード変更時: テスト実行 → Windowsコピー rsync → 必要なら本ファイル更新。push はユーザー明示指示時のみ
 
 ## 7. 不変条件(破る前にユーザー/設計判断が必要)
 
