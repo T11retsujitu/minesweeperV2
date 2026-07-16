@@ -1,6 +1,7 @@
 extends Control
 
 const FxConfig = preload("res://scripts/presentation/fx_config.gd")
+const PixelFont = preload("res://assets/fonts/PressStart2P-Regular.ttf")
 
 var max_value = 1
 var current_value = 0.0
@@ -78,12 +79,13 @@ func _notification(what):
 
 
 func _build_view():
-	custom_minimum_size = Vector2(0, 44)
+	custom_minimum_size = Vector2(0, 50)
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	title_label = Label.new()
-	title_label.add_theme_font_size_override("font_size", 12)
+	title_label.add_theme_font_override("font", PixelFont)
+	title_label.add_theme_font_size_override("font_size", 16)
 	title_label.add_theme_color_override("font_color", Color(0.82, 0.87, 0.88))
 	title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(title_label)
@@ -107,7 +109,8 @@ func _build_view():
 	value_label = Label.new()
 	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	value_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	value_label.add_theme_font_size_override("font_size", 13)
+	value_label.add_theme_font_override("font", PixelFont)
+	value_label.add_theme_font_size_override("font_size", 16)
 	value_label.add_theme_color_override("font_color", Color(0.96, 0.98, 0.98))
 	value_label.add_theme_constant_override("outline_size", 2)
 	value_label.add_theme_color_override("font_outline_color", Color.BLACK)
@@ -121,11 +124,11 @@ func _refresh_layout():
 	if title_label == null:
 		return
 	var width = max(0.0, size.x)
-	var title_height = 16.0
-	var bar_height = 22.0
+	var title_height = 20.0
+	var bar_height = 24.0
 	title_label.position = Vector2.ZERO
 	title_label.size = Vector2(width, title_height)
-	bar_background.position = Vector2(0.0, 18.0)
+	bar_background.position = Vector2(0.0, 24.0)
 	bar_background.size = Vector2(width, bar_height)
 	ghost_rect.position = Vector2.ZERO
 	fill_rect.position = Vector2.ZERO

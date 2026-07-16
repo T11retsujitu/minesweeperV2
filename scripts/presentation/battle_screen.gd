@@ -9,6 +9,10 @@ const FxLayer = preload("res://scripts/presentation/fx_layer.gd")
 const HpBar = preload("res://scripts/presentation/hp_bar.gd")
 const BoardWorld = preload("res://scripts/presentation/board_world.gd")
 const BackgroundTexture = preload("res://assets/textures/bg/bg_dungeon.png")
+const PixelFont = preload("res://assets/fonts/PressStart2P-Regular.ttf")
+const HudPanelTexture = preload("res://assets/textures/ui/hud_panel.png")
+const IconMineTexture = preload("res://assets/textures/ui/icon_mine.png")
+const IconFlagTexture = preload("res://assets/textures/ui/icon_flag.png")
 
 var controller = BattleController.new(CombatState.RULESET_AVATAR)
 var debug_show_mines = false
@@ -48,6 +52,10 @@ var terminal_panel = null
 var terminal_title_label = null
 var terminal_stats_label = null
 var terminal_tween = null
+var debug_drawer_panel = null
+var debug_drawer_content = null
+var debug_drawer_toggle = null
+var debug_drawer_expanded = false
 
 
 func _ready():
@@ -236,11 +244,11 @@ func _update_mine_counters(snapshot):
 			mine_count += 1
 		if cell_data["flag_state"] == "flagged":
 			flag_count += 1
-	mines_label.text = "Mines: %d" % (mine_count - flag_count)
+	mines_label.text = "×%d" % (mine_count - flag_count)
 	if _is_recovery_snapshot(snapshot):
-		flags_label.text = "Board: %d/%d" % [int(snapshot.get("safe_cells_revealed", 0)), int(snapshot.get("safe_cells_total", 0))]
+		flags_label.text = "%d/%d" % [int(snapshot.get("safe_cells_revealed", 0)), int(snapshot.get("safe_cells_total", 0))]
 	else:
-		flags_label.text = "Flags: %d" % flag_count
+		flags_label.text = "×%d" % flag_count
 
 
 func _is_recovery_snapshot(snapshot):
@@ -506,7 +514,7 @@ func _update_log(lines):
 		var label = Label.new()
 		label.text = str(lines[index])
 		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		label.add_theme_font_size_override("font_size", 14)
+		_apply_font(label, 8)
 		label.add_theme_color_override("font_color", Color(0.86, 0.89, 0.90))
 		log_box.add_child(label)
 	await get_tree().process_frame
@@ -606,8 +614,7 @@ func _build_layout():
 
 	_build_hud()
 	_build_board_area()
-	_build_controls()
-	_build_log()
+	_build_debug_drawer()
 
 	fx_canvas_layer = CanvasLayer.new()
 	fx_canvas_layer.name = "FxLayer"
@@ -632,37 +639,58 @@ func _build_layout():
 
 
 func _build_hud():
-	var panel = _make_panel(Color(0.13, 0.17, 0.19))
-	panel.custom_minimum_size = Vector2(0, 184)
+	var panel = _make_texture_panel()
+	panel.custom_minimum_size = Vector2(0, 112)
 	root.add_child(panel)
 
-	var margin = _make_margin(14)
+	var margin = _make_margin(12)
 	panel.add_child(margin)
 
-	var hud = GridContainer.new()
-	hud.columns = 2
-	hud.add_theme_constant_override("h_separation", 18)
-	hud.add_theme_constant_override("v_separation", 7)
+	var hud = VBoxContainer.new()
+	hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud.add_theme_constant_override("separation", 6)
 	margin.add_child(hud)
+
+	var top_row = HBoxContainer.new()
+	top_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	top_row.add_theme_constant_override("separation", 12)
+	hud.add_child(top_row)
 
 	player_bar = HpBar.new()
 	player_bar.setup("PLAYER", Balance.PLAYER_MAX_HP, FxConfig.COLOR_HP_PLAYER)
 	enemy_bar = HpBar.new()
 	enemy_bar.setup("ENEMY", Balance.ENEMY_MAX_HP, FxConfig.COLOR_HP_ENEMY)
-	enemy_countdown_label = _make_hud_label()
-	enemy_intent_label = _make_hud_label()
+	top_row.add_child(player_bar)
+	top_row.add_child(enemy_bar)
+
+	var counters = HBoxContainer.new()
+	counters.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	counters.add_theme_constant_override("separation", 8)
+	top_row.add_child(counters)
+
 	mines_label = _make_hud_label()
 	flags_label = _make_hud_label()
+	counters.add_child(_make_counter(IconMineTexture, mines_label))
+	counters.add_child(_make_counter(IconFlagTexture, flags_label))
+
+	var actions = HBoxContainer.new()
+	actions.add_theme_constant_override("separation", 6)
+	top_row.add_child(actions)
+	_add_small_button(actions, "Retry", _on_retry_pressed)
+	_add_small_button(actions, "Help", _on_help_pressed)
+	finish_button = _add_small_button(actions, "Finish", _on_finish_pressed)
+	finish_button.visible = false
+
+	status_label = _make_hud_label()
+	status_label.text = "Ready"
+	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hud.add_child(status_label)
+
+	enemy_countdown_label = _make_hud_label()
+	enemy_intent_label = _make_hud_label()
 	seed_label = _make_hud_label()
 	turn_label = _make_hud_label()
 	input_mode_label = _make_hud_label()
-	status_label = _make_hud_label()
-	status_label.text = "Ready"
-
-	hud.add_child(player_bar)
-	hud.add_child(enemy_bar)
-	for label in [enemy_countdown_label, enemy_intent_label, mines_label, flags_label, seed_label, turn_label, input_mode_label, status_label]:
-		hud.add_child(label)
 
 
 func _build_board_area():
@@ -694,18 +722,35 @@ func _refit_board_to_slot():
 	board_view.refit_to_slot(board_slot)
 
 
-func _build_controls():
-	var panel = _make_panel(Color(0.12, 0.15, 0.17))
-	panel.custom_minimum_size = Vector2(0, 112)
-	root.add_child(panel)
+func _build_debug_drawer():
+	debug_drawer_panel = _make_texture_panel()
+	debug_drawer_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	root.add_child(debug_drawer_panel)
 
-	var margin = _make_margin(10)
-	panel.add_child(margin)
+	var margin = _make_margin(8)
+	debug_drawer_panel.add_child(margin)
+
+	var drawer = VBoxContainer.new()
+	drawer.add_theme_constant_override("separation", 8)
+	margin.add_child(drawer)
+
+	debug_drawer_toggle = Button.new()
+	debug_drawer_toggle.text = "Debug"
+	debug_drawer_toggle.toggle_mode = true
+	debug_drawer_toggle.button_pressed = false
+	debug_drawer_toggle.custom_minimum_size = Vector2(120, 32)
+	_apply_font(debug_drawer_toggle, 16)
+	debug_drawer_toggle.pressed.connect(_on_debug_drawer_pressed)
+	drawer.add_child(debug_drawer_toggle)
+
+	debug_drawer_content = VBoxContainer.new()
+	debug_drawer_content.add_theme_constant_override("separation", 8)
+	drawer.add_child(debug_drawer_content)
 
 	var controls = HFlowContainer.new()
 	controls.add_theme_constant_override("h_separation", 8)
 	controls.add_theme_constant_override("v_separation", 8)
-	margin.add_child(controls)
+	debug_drawer_content.add_child(controls)
 
 	_add_button(controls, "Fixed", _on_fixed_pressed)
 	_add_button(controls, "Random", _on_random_pressed)
@@ -713,34 +758,48 @@ func _build_controls():
 	_add_button(controls, "New Seed", _on_new_seed_pressed)
 	_add_button(controls, "Retry", _on_retry_pressed)
 	_add_button(controls, "Help", _on_help_pressed)
-	finish_button = _add_button(controls, "Finish", _on_finish_pressed)
-	finish_button.visible = false
 
-	if OS.is_debug_build():
-		mine_toggle = CheckBox.new()
-		mine_toggle.text = "Show Mines"
-		mine_toggle.add_theme_font_size_override("font_size", 16)
-		mine_toggle.toggled.connect(_on_mine_toggle_toggled)
-		controls.add_child(mine_toggle)
+	mine_toggle = CheckBox.new()
+	mine_toggle.text = "Show Mines"
+	_apply_font(mine_toggle, 16)
+	mine_toggle.toggled.connect(_on_mine_toggle_toggled)
+	controls.add_child(mine_toggle)
 
-
-func _build_log():
-	var panel = _make_panel(Color(0.09, 0.12, 0.14))
-	panel.custom_minimum_size = Vector2(0, 190)
-	root.add_child(panel)
-
-	var margin = _make_margin(10)
-	panel.add_child(margin)
+	var info = GridContainer.new()
+	info.columns = 2
+	info.add_theme_constant_override("h_separation", 16)
+	info.add_theme_constant_override("v_separation", 5)
+	debug_drawer_content.add_child(info)
+	for label in [enemy_countdown_label, enemy_intent_label, seed_label, turn_label, input_mode_label]:
+		info.add_child(label)
 
 	log_scroll = ScrollContainer.new()
+	log_scroll.custom_minimum_size = Vector2(0, 88)
 	log_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	log_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	margin.add_child(log_scroll)
+	debug_drawer_content.add_child(log_scroll)
 
 	log_box = VBoxContainer.new()
 	log_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	log_box.add_theme_constant_override("separation", 3)
 	log_scroll.add_child(log_box)
+
+	_apply_debug_drawer_state()
+	if not OS.is_debug_build():
+		debug_drawer_panel.visible = false
+
+
+func _on_debug_drawer_pressed():
+	debug_drawer_expanded = debug_drawer_toggle.button_pressed
+	_apply_debug_drawer_state()
+
+
+func _apply_debug_drawer_state():
+	if debug_drawer_panel == null:
+		return
+	debug_drawer_content.visible = debug_drawer_expanded
+	debug_drawer_toggle.text = "Debug ▲" if debug_drawer_expanded else "Debug"
+	debug_drawer_panel.custom_minimum_size = Vector2(0, 250 if debug_drawer_expanded else 48)
 
 
 func _build_preview_overlay():
@@ -892,6 +951,17 @@ func _make_panel(color):
 	return panel
 
 
+func _make_texture_panel():
+	var panel = PanelContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var style = StyleBoxTexture.new()
+	style.texture = HudPanelTexture
+	for side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
+		style.set_texture_margin(side, 24.0)
+	panel.add_theme_stylebox_override("panel", style)
+	return panel
+
+
 func _make_margin(size):
 	var margin = MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", size)
@@ -903,10 +973,31 @@ func _make_margin(size):
 
 func _make_hud_label():
 	var label = Label.new()
-	label.add_theme_font_size_override("font_size", 18)
+	_apply_font(label, 16)
 	label.add_theme_color_override("font_color", Color(0.90, 0.93, 0.94))
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return label
+
+
+func _make_counter(icon_texture, label):
+	var box = HBoxContainer.new()
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.custom_minimum_size = Vector2(76, 32)
+	box.add_theme_constant_override("separation", 3)
+
+	var icon = TextureRect.new()
+	icon.texture = icon_texture
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.custom_minimum_size = Vector2(32, 32)
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(icon)
+
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.custom_minimum_size = Vector2(40, 32)
+	box.add_child(label)
+	return box
 
 
 func _make_overlay():
@@ -946,7 +1037,22 @@ func _add_button(parent, text, callback):
 	var button = Button.new()
 	button.text = text
 	button.custom_minimum_size = Vector2(96, 42)
-	button.add_theme_font_size_override("font_size", 16)
+	_apply_font(button, 16)
 	button.pressed.connect(callback)
 	parent.add_child(button)
 	return button
+
+
+func _add_small_button(parent, text, callback):
+	var button = Button.new()
+	button.text = text
+	button.custom_minimum_size = Vector2(74, 32)
+	_apply_font(button, 8)
+	button.pressed.connect(callback)
+	parent.add_child(button)
+	return button
+
+
+func _apply_font(control, font_size):
+	control.add_theme_font_override("font", PixelFont)
+	control.add_theme_font_size_override("font_size", font_size)
