@@ -35,10 +35,13 @@ func tap(cell):
 			"type": "detonation_preview",
 			"cell": cell,
 			"preview": state.board.preview_detonation(cell),
+			"can_defuse": _can_defuse(cell),
 		}]
 		events_emitted.emit(last_events)
 		return last_events
 	var target = state.board.get_cell(cell)
+	if ruleset == CombatState.RULESET_AVATAR and state.avatar_can_bump(cell):
+		return _consume_turn({"type": TurnResolver.ACTION_BUMP, "cell": cell})
 	if ruleset == CombatState.RULESET_AVATAR and target != null and target.is_revealed():
 		return _consume_turn({"type": TurnResolver.ACTION_MOVE, "cell": cell})
 	var relocation_event = null
@@ -78,6 +81,20 @@ func confirm_detonation():
 	var cell = pending_detonation_cell
 	pending_detonation_cell = null
 	return _consume_turn({"type": TurnResolver.ACTION_DETONATE, "cell": cell})
+
+
+func confirm_defuse():
+	if is_busy:
+		return _reject("input_locked", pending_detonation_cell)
+	if state == null or not state.is_active():
+		return _reject("state_not_playing", pending_detonation_cell)
+	if pending_detonation_cell == null:
+		return _reject("no_pending_detonation", Vector2i.ZERO)
+	var cell = pending_detonation_cell
+	if not _can_defuse(cell):
+		return _reject("defuse_not_adjacent", cell)
+	pending_detonation_cell = null
+	return _consume_turn({"type": TurnResolver.ACTION_DEFUSE, "cell": cell})
 
 
 func finish_recovery():
@@ -186,3 +203,13 @@ func _make_new_seed():
 	var rng = RandomNumberGenerator.new()
 	rng.seed = Time.get_ticks_usec()
 	return int(rng.randi())
+
+
+func _can_defuse(cell):
+	if ruleset != CombatState.RULESET_AVATAR or state == null or state.player == null:
+		return false
+	if not state.is_active() or not state.board.is_flagged(cell):
+		return false
+	var dx = abs(cell.x - state.player.position.x)
+	var dy = abs(cell.y - state.player.position.y)
+	return max(dx, dy) == 1

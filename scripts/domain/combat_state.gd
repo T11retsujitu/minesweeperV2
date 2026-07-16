@@ -77,6 +77,12 @@ func avatar_can_reveal(cell):
 	return target != null and target.can_reveal()
 
 
+func avatar_can_bump(cell):
+	if ruleset != RULESET_AVATAR or phase != PHASE_PLAYING or not _is_adjacent_to_player(cell):
+		return false
+	return enemy != null and not enemy.is_dead() and cell == enemy.position
+
+
 func avatar_movable_cells():
 	var result = []
 	if ruleset != RULESET_AVATAR or board == null:
@@ -98,6 +104,15 @@ func avatar_revealable_cells():
 			var coord = Vector2i(x, y)
 			if avatar_can_reveal(coord):
 				result.append(coord)
+	return result
+
+
+func avatar_bumpable_cells():
+	var result = []
+	if ruleset != RULESET_AVATAR or enemy == null or enemy.is_dead():
+		return result
+	if avatar_can_bump(enemy.position):
+		result.append(enemy.position)
 	return result
 
 
@@ -164,4 +179,5 @@ func to_snapshot():
 		"player_position": player.position if player != null else Vector2i.ZERO,
 		"movable_cells": avatar_movable_cells() if ruleset == RULESET_AVATAR else [],
 		"revealable_cells": avatar_revealable_cells() if ruleset == RULESET_AVATAR else [],
+		"bumpable_cells": avatar_bumpable_cells() if ruleset == RULESET_AVATAR else [],
 	}

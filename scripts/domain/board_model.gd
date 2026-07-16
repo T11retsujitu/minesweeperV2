@@ -192,6 +192,36 @@ func detonate_flagged_cell(coord):
 	}
 
 
+func defuse_flagged_cell(coord):
+	var cell = get_cell(coord)
+	if cell == null:
+		return {"accepted": false, "reason": "out_of_bounds", "cell": coord}
+	if not cell.is_flagged() or cell.is_detonated():
+		return {"accepted": false, "reason": "cell_not_defusable", "cell": coord}
+	if cell.contains_mine:
+		cell.flag_state = CellModel.FLAG_NONE
+		cell.contains_mine = false
+		cell.force_reveal()
+		recalculate_adjacent_mine_counts()
+		return {
+			"accepted": true,
+			"kind": "mine",
+			"cell": coord,
+			"cells_revealed": [coord],
+			"adjacent": cell.adjacent_mine_count,
+		}
+
+	cell.flag_state = CellModel.FLAG_NONE
+	var revealed = reveal_safe_area(coord)
+	return {
+		"accepted": true,
+		"kind": "dud",
+		"cell": coord,
+		"cells_revealed": revealed,
+		"adjacent": cell.adjacent_mine_count,
+	}
+
+
 func reveal_safe_area(start_coord):
 	var revealed = []
 	var queued = {}

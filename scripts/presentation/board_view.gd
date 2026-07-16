@@ -27,6 +27,7 @@ func update_from_snapshot(snapshot, debug_show_mines):
 	var player_position = snapshot.get("player_position", Vector2i.ZERO)
 	var movable_cells = snapshot.get("movable_cells", [])
 	var revealable_cells = snapshot.get("revealable_cells", [])
+	var bumpable_cells = snapshot.get("bumpable_cells", [])
 	var territory_cells = snapshot.get("territory_cells", [])
 	for cell_data in snapshot["cells"]:
 		var coord = cell_data["coord"]
@@ -43,6 +44,7 @@ func update_from_snapshot(snapshot, debug_show_mines):
 			"player_here": is_avatar and coord == player_position,
 			"movable": is_avatar and movable_cells.has(coord),
 			"revealable": is_avatar and revealable_cells.has(coord),
+			"bumpable": is_avatar and bumpable_cells.has(coord),
 			"territory": territory_cells.has(coord),
 		}
 		cells[coord].set_display(cell_data, options)
@@ -132,6 +134,21 @@ func play_enemy_attack_glow(coord):
 	if cells.has(coord):
 		cells[coord].flash_attack_glow(FxConfig.ENEMY_ATTACK_GLOW_SEC)
 	await get_tree().create_timer(FxConfig.ENEMY_ATTACK_GLOW_SEC).timeout
+
+
+func play_bump_flash(coord):
+	if cells.has(coord):
+		cells[coord].flash(FxConfig.COLOR_BUMP_FLASH, FxConfig.BUMP_FLASH_SEC)
+	await get_tree().create_timer(FxConfig.BUMP_FLASH_SEC).timeout
+
+
+func play_defuse_flash(coord, success):
+	if cells.has(coord):
+		var color = FxConfig.COLOR_DEFUSE_FLASH
+		if not success:
+			color = FxConfig.COLOR_DEFUSE_DUD_FLASH
+		cells[coord].flash(color, FxConfig.DEFUSE_FLASH_SEC)
+	await get_tree().create_timer(FxConfig.DEFUSE_FLASH_SEC).timeout
 
 
 func _explosion_ring_cells(center):

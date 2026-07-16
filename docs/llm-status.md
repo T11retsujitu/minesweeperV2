@@ -8,7 +8,7 @@
 
 - **What**: マインスイーパーの地雷を「敵への攻撃資源」として起爆する短時間ローグライトの戦闘プロトタイプ。Godot 4.4.1 / GDScript / 720×1280縦画面 / gl_compatibility。
 - **核仮説(未判定)**: 数字を読んで特定した地雷を敵への攻撃として起爆する行為そのものが気持ちよいか。
-- **現フェーズ**: Phase 2 第一弾「盤上プレイヤーアバター(移動して開放モデル)」= **実装・自動検証・実行確認まで完了**。ユーザー実プレイでの手触り評価待ち。Phase 1 成果物は ruleset="phase1" として保存(テスト230件で検証継続)。
+- **現フェーズ**: Phase 2 UX改良パス(game-design §7.5 の 1〜4 = 読める風景/クリア二層化/縄張り/攻撃動詞/ポジティブ演出)= **全6マイルストーン実装・自動検証・スクショ確認まで完了(2026-07-16)**。ユーザー実プレイでの手触り評価待ち。Phase 1 成果物は ruleset="phase1" として保存(テスト230件で検証継続)。
 - **体制(ユーザー指定・変更不可)**: Claude = 設計者/オーケストレーター/検証者。**実コーディングは Codex MCP**(`mcp__codex__codex` / `codex-reply`)に依頼する。ユーザーは基本Auto進行(確認質問は最小限)を希望。
 
 ## 2. 環境ファクト
@@ -17,7 +17,7 @@
 |------|-----|
 | Godot (WSL) | `~/.local/bin/godot`(4.4.1.stable.official)|
 | 実行環境 | WSL2 Ubuntu + WSLg(DISPLAY=:0。ウィンドウ実行・スクショ検証可)|
-| テスト | `~/.local/bin/godot --headless --path . --script res://tests/run_tests.gd` → **564 passed / exit 0 が正常**(旧ルール230+アバター200+回収71+縄張り63)|
+| テスト | `~/.local/bin/godot --headless --path . --script res://tests/run_tests.gd` → **636 passed / exit 0 が正常**(旧ルール230+アバター200+回収71+縄張り63+攻撃動詞72)|
 | Windowsテストプレイ | `C:\Users\a\minesweeperV2-play\`(プレイ用コピー)+ `C:\Users\a\Godot\Godot_v4.4.1-stable_win64.exe` + デスクトップ `Play_Minesweeper.bat` |
 | Windowsコピー同期 | `rsync -a --delete --exclude='.git' --exclude='.godot' --exclude='*.md' --exclude='docs' ~/src/minesweeperV2/ /mnt/c/Users/a/minesweeperV2-play/` — **コード変更のたびに必要(自動同期なし)** |
 | Git | ブランチ main のみ。remote(origin)は空。**push 禁止**。マイルストーン毎にローカルコミット、`Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>` 付与 |
@@ -37,7 +37,8 @@
 - **UX改良 M2a クリア二層化 domain/application(§7.3、2026-07-16)**: avatar のみ敵HP0→ `combat_won` + PHASE_RECOVERY(回収フェーズ: 敵ステップ全スキップ・誤爆死は通常敗北)→ 全安全セル開放で `perfect_clear + victory{perfect:true}` / FINISH(ターン非消費)で `victory{perfect:false}`。同時死亡はD6勝利優先でrecovery非経由。死体セル通行可(D29)。snapshot に phase/accidental_mine_count/safe_cells_total/safe_cells_revealed 追加。**テスト501件**(回収到達性はグリーディウォーカーで証明)。phase1 は完全凍結(テストdiffゼロ)。設計判断 D28〜D30
 - **UX改良 M2b クリア二層化 presentation(2026-07-16)**: combat_won トースト(非ブロッキング2秒)/ recovery 中 HUD(Countdown stopped・Enemy: defeated・Board n/N・Finishボタン)/ リザルト画面(VICTORY/PERFECT CLEAR/DEFEAT+Turns/HP/Board%/Misfires 統計、Perfect時金演出)/ main.gd に `finish` デバッグコマンド = **presentation層のみ・テスト501不変・WSLgスクショ検証(recovery HUD/リザルト統計)**
 - **UX改良 M3a 縄張りルール(§7.4、2026-07-16)**: `TERRITORY_RADIUS=2`(game_balance)。avatar のみ、アクション解決後のプレイヤー位置が縄張り外ならカウントダウン凍結(`countdown_paused`)・敵攻撃なし。盤面に縄張りティント常時表示(敵死亡で消灯)+HUD「Countdown: N (paused)」。**test_avatar_walkthrough 無変更のまま緑=回帰証明。テスト564件**。設計判断 D31
-- **ドキュメント**: README / implementation-plan / architecture / decisions(D1〜D31)/ playtest-checklist / pv-vision-roadmap 完備
+- **UX改良 M3b 攻撃動詞(§7.4、2026-07-16)**: bump攻撃(隣接生存敵タップ=1ダメ+生存時のみ反撃2、bumpableハイライト、突進演出)/ 地雷除去(隣接フラグ済み限定、除去+開放+数字再計算+敵2ダメ、起爆プレビューにDefuseボタン)。BUMP_DAMAGE/BUMP_COUNTER_DAMAGE/DEFUSE_DAMAGE は game_balance。**起爆優位は番犬テストで固定**(bump単騎不成立の不等式含む)。アグロ線オラクル: 起爆×2→bump×2の4Tでrecovery到達・最終HP6。**テスト636件**・凍結テスト diff ゼロ。設計判断 D32〜D33
+- **ドキュメント**: README / implementation-plan / architecture / decisions(D1〜D33)/ playtest-checklist / pv-vision-roadmap 完備
 
 ## 4. できていない部分
 
@@ -69,7 +70,7 @@
 2. **手動プレイテスト継続** — docs/playtest-checklist.md の10項目を記録。特に「起爆の手応え(核仮説)」。アバタールール前提で再評価
 3. (完了)課題1 = 演出強化(候補1〜3)+盤上アバター(候補4)で対応済み。ユーザー確認済み(演出分)
 3. プレイテスト結果に応じた `game_balance.gd` の数値調整(全数値がここに一元化されている)
-4. 判定が肯定的なら Phase 2 実装 — **設計方針は docs/game-design.md §7 で確定済み**(2026-07-16): 「盤面が読める風景」化 → クリア二層化(敵全滅+Perfect Clearボーナス)→ 攻撃動詞追加(bump・地雷除去)。敵移動は保留(縄張りモデル優先)。PVビジョンとの統合は docs/pv-vision-roadmap.md 参照
+4. (完了 2026-07-16)Phase 2 UX改良 — §7.5 の 1〜4(読める風景 / クリア二層化 / 縄張り+攻撃動詞 / ポジティブ演出)をすべて実装済み(D28〜D33)。**次はユーザー実プレイで「一新されたゲームループ(縄張り・回収フェーズ・bump/除去)」の手触り評価**。敵移動は引き続き保留。アセット(画像/音)導入は pv-vision-roadmap Step 2 として未着手
 5. (運用)コード変更時: テスト実行 → Windowsコピー rsync → 必要なら本ファイル更新
 
 ## 7. 不変条件(破る前にユーザー/設計判断が必要)

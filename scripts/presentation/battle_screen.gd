@@ -35,6 +35,7 @@ var toast_label = null
 var toast_tween = null
 var preview_overlay = null
 var preview_body_label = null
+var defuse_button = null
 var help_overlay = null
 var terminal_overlay = null
 var terminal_panel = null
@@ -246,12 +247,16 @@ func _show_preview(event):
 	var preview = event["preview"]
 	board_view.set_preview(event["cell"], preview)
 	preview_body_label.text = _format_preview_text(event["cell"], preview)
+	if defuse_button != null:
+		defuse_button.visible = bool(event.get("can_defuse", false))
 	preview_overlay.visible = true
 	status_label.text = "Detonation preview"
 
 
 func _hide_preview():
 	preview_overlay.visible = false
+	if defuse_button != null:
+		defuse_button.visible = false
 	board_view.clear_preview()
 
 
@@ -411,6 +416,8 @@ func _update_status_from_events(events):
 		elif event_type == "player_moved":
 			var target = event["to"]
 			next_status = "Moved to (%d, %d)" % [target.x, target.y]
+		elif event_type == "enemy_bumped":
+			next_status = "Bumped enemy"
 		elif event_type == "mine_exploded":
 			has_mine_result = true
 			if bool(event.get("accidental", false)):
@@ -420,6 +427,10 @@ func _update_status_from_events(events):
 		elif event_type == "dud_detonation":
 			has_dud_result = true
 			next_status = "Dud detonation (%d, %d)" % [event["cell"].x, event["cell"].y]
+		elif event_type == "mine_defused":
+			next_status = "Defused (%d, %d)" % [event["cell"].x, event["cell"].y]
+		elif event_type == "defuse_dud":
+			next_status = "Defuse dud (%d, %d)" % [event["cell"].x, event["cell"].y]
 		elif event_type == "enemy_attacked":
 			next_status = "Enemy attacked"
 		elif event_type == "combat_won":
@@ -443,6 +454,12 @@ func _reject_status_text(reason):
 		return "Too far to reveal"
 	if reason == "move_not_available":
 		return "Move unavailable"
+	if reason == "invalid_bump_target":
+		return "Can't bump there"
+	if reason == "defuse_not_adjacent":
+		return "Too far to defuse"
+	if reason == "cell_not_defusable":
+		return "Can't defuse there"
 	return "Input rejected: " + reason
 
 
@@ -487,6 +504,11 @@ func _update_log(lines):
 func _on_detonate_pressed():
 	_hide_preview()
 	controller.confirm_detonation()
+
+
+func _on_defuse_pressed():
+	_hide_preview()
+	controller.confirm_defuse()
 
 
 func _on_cancel_detonation_pressed():
@@ -677,6 +699,8 @@ func _build_preview_overlay():
 	buttons.add_theme_constant_override("separation", 12)
 	box.add_child(buttons)
 	_add_button(buttons, "Detonate", _on_detonate_pressed)
+	defuse_button = _add_button(buttons, "Defuse", _on_defuse_pressed)
+	defuse_button.visible = false
 	_add_button(buttons, "Cancel", _on_cancel_detonation_pressed)
 
 
@@ -696,7 +720,7 @@ func _build_help_overlay():
 
 	box.add_child(_make_overlay_label("Help", 26))
 	var body = _make_overlay_label(
-		"Tap adjacent hidden cell = reveal\nTap adjacent revealed cell = move\nFlag & detonate = remote\nRight click or long press: toggle flag\nGoal: read the numbers, identify mines, then detonate them to reduce enemy HP 6 to zero.\nThe enemy attacks for 2 when its countdown reaches 0.",
+		"Tap adjacent hidden cell = reveal\nTap adjacent revealed cell = move\nTap adjacent enemy = bump\nFlag adjacent mine, then Defuse = remove\nFlag & detonate = remote\nRight click or long press: toggle flag\nGoal: read the numbers, identify mines, then detonate them to reduce enemy HP 6 to zero.\nThe enemy attacks for 2 when its countdown reaches 0.",
 		18
 	)
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

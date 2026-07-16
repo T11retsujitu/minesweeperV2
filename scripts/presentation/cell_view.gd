@@ -73,9 +73,13 @@ func set_display(cell_data, options):
 
 	var movable = bool(options.get("movable", false))
 	var revealable = bool(options.get("revealable", false))
-	highlight_rect.visible = movable or revealable
-	highlight_border_visible = movable or revealable
-	if movable:
+	var bumpable = bool(options.get("bumpable", false))
+	highlight_rect.visible = movable or revealable or bumpable
+	highlight_border_visible = movable or revealable or bumpable
+	if bumpable:
+		highlight_rect.color = FxConfig.COLOR_HIGHLIGHT_BUMPABLE
+		highlight_border_color = FxConfig.COLOR_HIGHLIGHT_BUMPABLE_BORDER
+	elif movable:
 		highlight_rect.color = FxConfig.COLOR_HIGHLIGHT_MOVABLE
 		highlight_border_color = FxConfig.COLOR_HIGHLIGHT_MOVABLE_BORDER
 	elif revealable:

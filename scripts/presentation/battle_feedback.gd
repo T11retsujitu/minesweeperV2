@@ -51,8 +51,17 @@ func play_events(events, snapshot):
 		elif event_type == "player_moved":
 			await _play_player_move_feedback(event["from"], event["to"])
 			waited = true
+		elif event_type == "enemy_bumped":
+			await _play_bump_feedback(event["cell"], snapshot)
+			waited = true
 		elif event_type == "dud_detonation":
 			await board_view.play_dud(event["cell"])
+			waited = true
+		elif event_type == "mine_defused":
+			await _play_defuse_feedback(event["cell"], true)
+			waited = true
+		elif event_type == "defuse_dud":
+			await _play_defuse_feedback(event["cell"], false)
 			waited = true
 		elif event_type == "enemy_damaged" and int(event.get("amount", 0)) > 0:
 			var enemy_amount = int(event.get("amount", 0))
@@ -114,6 +123,35 @@ func _play_player_move_feedback(from_cell, to_cell):
 	await board_view.get_tree().create_timer(FxConfig.PLAYER_MOVE_SEC).timeout
 
 
+func _play_bump_feedback(enemy_cell, snapshot):
+	var total_sec = FxConfig.PLAYER_MOVE_SEC * 2.0
+	if fx_layer != null:
+		var player_cell = snapshot.get("player_position", Vector2i.ZERO)
+		var marker = Control.new()
+		marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		marker.size = Vector2(FxConfig.PLAYER_MARKER_OUTLINE_SIZE, FxConfig.PLAYER_MARKER_OUTLINE_SIZE)
+		var outline = _make_move_marker_rect(
+			FxConfig.PLAYER_MARKER_OUTLINE_SIZE,
+			Color(1.0, 1.0, 1.0, 0.88)
+		)
+		var fill = _make_move_marker_rect(FxConfig.PLAYER_MARKER_SIZE, FxConfig.COLOR_PLAYER_MARKER)
+		fill.position = (marker.size - fill.size) * 0.5
+		marker.add_child(outline)
+		marker.add_child(fill)
+		var local_from = fx_layer.get_global_transform().affine_inverse() * board_view.debug_cell_canvas_position(player_cell)
+		var local_to = fx_layer.get_global_transform().affine_inverse() * board_view.debug_cell_canvas_position(enemy_cell)
+		marker.position = local_from - marker.size * 0.5
+		fx_layer.add_child(marker)
+		var tween = fx_layer.create_tween()
+		tween.tween_property(marker, "position", local_to - marker.size * 0.5, FxConfig.PLAYER_MOVE_SEC).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tween.tween_property(marker, "position", local_from - marker.size * 0.5, FxConfig.PLAYER_MOVE_SEC).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tween.finished.connect(marker.queue_free)
+	await board_view.play_bump_flash(enemy_cell)
+	var remaining = max(0.0, total_sec - FxConfig.BUMP_FLASH_SEC)
+	if remaining > 0.0:
+		await board_view.get_tree().create_timer(remaining).timeout
+
+
 func _make_move_marker_rect(marker_size, color):
 	var rect = ColorRect.new()
 	rect.color = color
@@ -141,9 +179,21 @@ func _play_player_damage_feedback(event, accidental_mine_cell, snapshot):
 	elif source == "detonation_splash":
 		text = "-%d SPLASH!" % player_amount
 		color = FxConfig.COLOR_DAMAGE_MINE
+	elif source == "bump_counter":
+		text = "-%d COUNTER" % player_amount
 	fx_layer.spawn_damage_float(player_pos, text, color)
 	player_bar.flash()
 	await player_bar.animate_to(int(event["after"]))
+
+
+func _play_defuse_feedback(cell, success):
+	await board_view.play_defuse_flash(cell, success)
+	if fx_layer == null:
+		return
+	var cell_pos = board_view.debug_cell_canvas_position(cell)
+	var text = "DEFUSED" if success else "DUD"
+	var color = FxConfig.COLOR_DEFUSE_FLOAT if success else FxConfig.COLOR_DEFUSE_DUD_FLASH
+	fx_layer.spawn_damage_float(cell_pos, text, color)
 
 
 func _play_enemy_attack_chain(damage_event, snapshot):

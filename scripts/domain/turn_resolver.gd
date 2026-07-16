@@ -6,6 +6,8 @@ const CombatState = preload("res://scripts/domain/combat_state.gd")
 const ACTION_REVEAL = "REVEAL"
 const ACTION_DETONATE = "DETONATE"
 const ACTION_MOVE = "MOVE"
+const ACTION_BUMP = "BUMP"
+const ACTION_DEFUSE = "DEFUSE"
 const ACTION_FINISH = "FINISH"
 
 
@@ -29,6 +31,18 @@ static func resolve(state, action):
 			return [_event("turn_rejected", {"reason": "move_not_available", "cell": cell})]
 		if not state.avatar_can_move_to(cell):
 			return [_event("turn_rejected", {"reason": "invalid_move_target", "cell": cell})]
+	elif action_type == ACTION_BUMP:
+		if state.ruleset != CombatState.RULESET_AVATAR:
+			return [_event("turn_rejected", {"reason": "bump_not_available", "cell": cell})]
+		if not state.avatar_can_bump(cell):
+			return [_event("turn_rejected", {"reason": "invalid_bump_target", "cell": cell})]
+		result = {"accepted": true, "kind": "bump", "cell": cell}
+	elif action_type == ACTION_DEFUSE:
+		if state.ruleset != CombatState.RULESET_AVATAR:
+			return [_event("turn_rejected", {"reason": "defuse_not_available", "cell": cell})]
+		if not _is_adjacent_to_player(state, cell):
+			return [_event("turn_rejected", {"reason": "defuse_not_adjacent", "cell": cell})]
+		result = state.board.defuse_flagged_cell(cell)
 	elif action_type == ACTION_REVEAL:
 		if state.ruleset == CombatState.RULESET_AVATAR and not state.avatar_can_reveal(cell):
 			return [_event("turn_rejected", {"reason": "cell_not_adjacent_to_player", "cell": cell})]
@@ -51,7 +65,12 @@ static func resolve(state, action):
 		state.record_log("Turn %d: move (%d, %d) -> (%d, %d)" % [state.turn_count, from.x, from.y, cell.x, cell.y])
 	else:
 		_append_action_events(state, events, action_type, result)
-		_apply_explosion_damage(state, events, action_type, result)
+		if action_type == ACTION_BUMP:
+			_apply_bump_damage(state, events, result)
+		elif action_type == ACTION_DEFUSE:
+			_apply_defuse_damage(state, events, result)
+		else:
+			_apply_explosion_damage(state, events, action_type, result)
 
 	if state.phase == CombatState.PHASE_RECOVERY:
 		return _resolve_recovery_turn(state, events)
@@ -154,6 +173,39 @@ static func _append_action_events(state, events, action_type, result):
 			"Turn %d: detonate (%d, %d) -> dud, adjacent=%d"
 			% [state.turn_count, coord.x, coord.y, result["adjacent"]]
 		)
+	elif action_type == ACTION_BUMP:
+		events.append(_event("enemy_bumped", {"cell": coord, "damage": Balance.BUMP_DAMAGE}))
+		state.record_log("Turn %d: bump (%d, %d) -> enemy damage=%d" % [state.turn_count, coord.x, coord.y, Balance.BUMP_DAMAGE])
+	elif action_type == ACTION_DEFUSE and result["kind"] == "mine":
+		var defuse_damage = 0
+		if state.phase != CombatState.PHASE_RECOVERY and state.enemy != null and not state.enemy.is_dead():
+			defuse_damage = Balance.DEFUSE_DAMAGE
+		events.append(_event("mine_defused", {"cell": coord, "damage": defuse_damage}))
+		events.append(_event("cells_revealed", {"cells": result["cells_revealed"], "trigger": coord}))
+		state.record_log("Turn %d: defuse (%d, %d) -> mine, enemy damage=%d" % [state.turn_count, coord.x, coord.y, defuse_damage])
+	elif action_type == ACTION_DEFUSE and result["kind"] == "dud":
+		events.append(_event("defuse_dud", {"cell": coord}))
+		events.append(_event("cells_revealed", {"cells": result["cells_revealed"], "trigger": coord}))
+		state.record_log("Turn %d: defuse (%d, %d) -> dud" % [state.turn_count, coord.x, coord.y])
+
+
+static func _apply_bump_damage(state, events, result):
+	var enemy_damage = state.enemy.apply_damage(Balance.BUMP_DAMAGE)
+	events.append(_event("enemy_damaged", _with_source(enemy_damage, "bump")))
+	if state.enemy.is_dead():
+		return
+	var player_damage = state.player.apply_damage(Balance.BUMP_COUNTER_DAMAGE)
+	events.append(_event("player_damaged", _with_source(player_damage, "bump_counter")))
+	state.record_log("Bump counter: %d, HP=%d" % [player_damage["amount"], player_damage["after"]])
+
+
+static func _apply_defuse_damage(state, events, result):
+	if result["kind"] != "mine":
+		return
+	if state.phase == CombatState.PHASE_RECOVERY or state.enemy == null or state.enemy.is_dead():
+		return
+	var enemy_damage = state.enemy.apply_damage(Balance.DEFUSE_DAMAGE)
+	events.append(_event("enemy_damaged", _with_source(enemy_damage, "defuse")))
 
 
 static func _apply_explosion_damage(state, events, action_type, result):
@@ -200,3 +252,11 @@ static func _with_source(payload, source):
 	var result = payload.duplicate()
 	result["source"] = source
 	return result
+
+
+static func _is_adjacent_to_player(state, cell):
+	if state == null or state.player == null:
+		return false
+	var dx = abs(cell.x - state.player.position.x)
+	var dy = abs(cell.y - state.player.position.y)
+	return max(dx, dy) == 1

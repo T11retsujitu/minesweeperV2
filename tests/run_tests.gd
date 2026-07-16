@@ -10,6 +10,7 @@ const TestAvatarWalkthrough = preload("res://tests/test_avatar_walkthrough.gd")
 const TestBattleControllerAvatar = preload("res://tests/test_battle_controller_avatar.gd")
 const TestRecoveryPhase = preload("res://tests/test_recovery_phase.gd")
 const TestTerritory = preload("res://tests/test_territory.gd")
+const TestAttackVerbs = preload("res://tests/test_attack_verbs.gd")
 
 var total = 0
 var failed = 0
@@ -28,6 +29,7 @@ func _initialize():
 		TestBattleControllerAvatar.new(),
 		TestRecoveryPhase.new(),
 		TestTerritory.new(),
+		TestAttackVerbs.new(),
 	]
 	for test in tests:
 		test.run(self)
