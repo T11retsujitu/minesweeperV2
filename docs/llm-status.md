@@ -87,6 +87,7 @@
 | `docs/architecture.md` | レイヤ構造・イベントカタログ・状態の正本 |
 | `docs/playtest-checklist.md` | §13の10項目+**発見された課題リスト**(課題1あり)|
 | `docs/pv-vision-roadmap.md` | PV例の分析・ギャップ・演出/ビジュアル強化ロードマップ(Step 0〜4)|
+| `docs/game-design.md` | **ゲーム性の正本**: 現行ルール(アバター)・旧ルール差分・体験レイヤ・変遷と意図・今後の判断点。ルール変更時に必ず更新 |
 | `docs/llm-status.md` | 本ファイル。**状態変化時に更新すること** |
 | `README.md` | 人間向け(起動・操作・テスト)|
 
