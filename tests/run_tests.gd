@@ -3,6 +3,7 @@ extends SceneTree
 const TestBoardModel = preload("res://tests/test_board_model.gd")
 const TestExplosion = preload("res://tests/test_explosion.gd")
 const TestTurnResolver = preload("res://tests/test_turn_resolver.gd")
+const TestAvatarRules = preload("res://tests/test_avatar_rules.gd")
 const TestGenerator = preload("res://tests/test_generator.gd")
 const TestFixtureWalkthrough = preload("res://tests/test_fixture_walkthrough.gd")
 
@@ -16,6 +17,7 @@ func _initialize():
 		TestBoardModel.new(),
 		TestExplosion.new(),
 		TestTurnResolver.new(),
+		TestAvatarRules.new(),
 		TestGenerator.new(),
 		TestFixtureWalkthrough.new(),
 	]

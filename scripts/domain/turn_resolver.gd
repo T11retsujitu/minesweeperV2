@@ -5,6 +5,7 @@ const CombatState = preload("res://scripts/domain/combat_state.gd")
 
 const ACTION_REVEAL = "REVEAL"
 const ACTION_DETONATE = "DETONATE"
+const ACTION_MOVE = "MOVE"
 
 
 static func resolve(state, action):
@@ -17,21 +18,34 @@ static func resolve(state, action):
 	var action_type = action["type"]
 	var cell = action["cell"]
 	var result = null
-	if action_type == ACTION_REVEAL:
+	if action_type == ACTION_MOVE:
+		if state.ruleset != CombatState.RULESET_AVATAR:
+			return [_event("turn_rejected", {"reason": "move_not_available", "cell": cell})]
+		if not state.avatar_can_move_to(cell):
+			return [_event("turn_rejected", {"reason": "invalid_move_target", "cell": cell})]
+	elif action_type == ACTION_REVEAL:
+		if state.ruleset == CombatState.RULESET_AVATAR and not state.avatar_can_reveal(cell):
+			return [_event("turn_rejected", {"reason": "cell_not_adjacent_to_player", "cell": cell})]
 		result = state.board.reveal_cell(cell)
 	elif action_type == ACTION_DETONATE:
 		result = state.board.detonate_flagged_cell(cell)
 	else:
 		return [_event("turn_rejected", {"reason": "unknown_action", "action_type": action_type})]
 
-	if not result["accepted"]:
+	if result != null and not result["accepted"]:
 		return [_event("turn_rejected", {"reason": result["reason"], "cell": cell})]
 
 	state.turn_count += 1
 	if action_type == ACTION_REVEAL:
 		state.first_reveal_done = true
-	_append_action_events(state, events, action_type, result)
-	_apply_explosion_damage(state, events, action_type, result)
+	if action_type == ACTION_MOVE:
+		var from = state.player.position
+		state.player.position = cell
+		events.append(_event("player_moved", {"from": from, "to": cell}))
+		state.record_log("Turn %d: move (%d, %d) -> (%d, %d)" % [state.turn_count, from.x, from.y, cell.x, cell.y])
+	else:
+		_append_action_events(state, events, action_type, result)
+		_apply_explosion_damage(state, events, action_type, result)
 
 	if state.enemy.is_dead():
 		events.append(_event("enemy_died", {"enemy_hp": state.enemy.hp}))
@@ -104,6 +118,17 @@ static func _apply_explosion_damage(state, events, action_type, result):
 		var player_damage = state.player.apply_damage(Balance.ACCIDENTAL_MINE_DAMAGE)
 		events.append(_event("player_damaged", _with_source(player_damage, "accidental_mine")))
 		state.record_log("Player damage: %d, HP=%d" % [player_damage["amount"], player_damage["after"]])
+
+	if (
+		state.ruleset == CombatState.RULESET_AVATAR
+		and action_type == ACTION_DETONATE
+		and result["kind"] == "mine"
+	):
+		var splash_damage = state.board.explosion_damage_at(coord, state.player.position)
+		if splash_damage > 0:
+			var splash_result = state.player.apply_damage(splash_damage)
+			events.append(_event("player_damaged", _with_source(splash_result, "detonation_splash")))
+			state.record_log("Player splash damage: %d, HP=%d" % [splash_result["amount"], splash_result["after"]])
 
 
 static func _event(type, payload):
