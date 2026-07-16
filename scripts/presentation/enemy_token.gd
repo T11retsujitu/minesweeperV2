@@ -8,16 +8,29 @@ const IDLE_TEXTURES = [
 	preload("res://assets/textures/chars/slime_idle_f2.png"),
 ]
 const SPRITE_SIZE = Vector2(88.0, 96.0)
+const FLASH_SHADER_CODE = """
+shader_type canvas_item;
+uniform float flash_amount : hint_range(0.0, 1.0) = 0.0;
+
+void fragment() {
+	vec4 tex = texture(TEXTURE, UV) * COLOR;
+	tex.rgb = mix(tex.rgb, vec3(1.0), flash_amount * tex.a);
+	COLOR = tex;
+}
+"""
 
 var countdown = 0
 var pulse_tween = null
+var hit_tween = null
 var pulse_active = false
 var body_root = null
 var sprite = null
+var sprite_flash_material = null
 var idle_timer = null
 var idle_frame = 0
 var idle_timer_first_tick = true
 var state_key = {}
+var current_coord = Vector2i.ZERO
 
 
 func _ready():
@@ -35,12 +48,41 @@ func set_display(is_visible, coord, next_countdown):
 	state_key = next_key
 	visible = bool(is_visible)
 	countdown = int(next_countdown)
+	current_coord = coord
 	position = ViewConfig.entity_anchor(coord)
+	_reset_hit_reaction()
 	if visible and countdown == 1:
 		_start_pulse()
 	else:
 		_stop_pulse()
 	queue_redraw()
+
+
+func play_mine_hit_reaction(source_world_pos):
+	if not visible or body_root == null:
+		return
+	if hit_tween != null:
+		hit_tween.kill()
+		hit_tween = null
+
+	var direction = position - source_world_pos
+	if direction.length() <= 0.001:
+		direction = Vector2.UP
+	direction = direction.normalized()
+
+	body_root.position = Vector2.ZERO
+	_set_sprite_flash_amount(1.0)
+	hit_tween = create_tween()
+	hit_tween.set_ignore_time_scale(true)
+	hit_tween.set_parallel(true)
+	hit_tween.tween_property(body_root, "position", direction * FxConfig.ENEMY_HIT_KNOCKBACK_PX, FxConfig.ENEMY_HIT_KNOCKBACK_OUT_SEC).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	hit_tween.tween_method(Callable(self, "_set_sprite_flash_amount"), 1.0, 0.0, FxConfig.ENEMY_HIT_FLASH_SEC)
+	hit_tween.chain().tween_property(body_root, "position", Vector2.ZERO, FxConfig.ENEMY_HIT_KNOCKBACK_RETURN_SEC).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+	hit_tween.finished.connect(_on_hit_reaction_finished)
+
+
+func get_coord():
+	return current_coord
 
 
 func _draw():
@@ -77,6 +119,12 @@ func _build_body():
 	sprite.centered = false
 	sprite.texture = IDLE_TEXTURES[0]
 	sprite.position = Vector2(-SPRITE_SIZE.x * 0.5, -SPRITE_SIZE.y)
+	var shader = Shader.new()
+	shader.code = FLASH_SHADER_CODE
+	sprite_flash_material = ShaderMaterial.new()
+	sprite_flash_material.shader = shader
+	sprite_flash_material.set_shader_parameter("flash_amount", 0.0)
+	sprite.material = sprite_flash_material
 	body_root.add_child(sprite)
 
 	idle_timer = Timer.new()
@@ -129,3 +177,24 @@ func _stop_pulse():
 		pulse_tween.kill()
 		pulse_tween = null
 	modulate = Color.WHITE
+
+
+func _reset_hit_reaction():
+	if hit_tween != null:
+		hit_tween.kill()
+		hit_tween = null
+	if body_root != null:
+		body_root.position = Vector2.ZERO
+	_set_sprite_flash_amount(0.0)
+
+
+func _set_sprite_flash_amount(value):
+	if sprite_flash_material != null:
+		sprite_flash_material.set_shader_parameter("flash_amount", value)
+
+
+func _on_hit_reaction_finished():
+	hit_tween = null
+	if body_root != null:
+		body_root.position = Vector2.ZERO
+	_set_sprite_flash_amount(0.0)

@@ -146,17 +146,31 @@ func play_explosion(center, accidental):
 		return
 
 	var elapsed = 0.0
+	var center_canvas_pos = debug_cell_canvas_position(center)
 	_flash_explosion_cell(center, true)
-	_spawn_explosion_particles(center, true)
+	if accidental:
+		_spawn_explosion_particles(center, true)
+	elif fx_layer != null:
+		fx_layer.flash_explosion_vignette()
+		if camera_rig != null:
+			camera_rig.punch(ViewConfig.cell_center(center))
+
 	if fx_layer != null:
 		await fx_layer.hit_stop()
 		elapsed += FxConfig.HIT_STOP_SEC
+
+	if not accidental and fx_layer != null:
+		fx_layer.spawn_fireball(center_canvas_pos)
+		_spawn_explosion_particles(center, true, true)
 
 	await get_tree().create_timer(FxConfig.EXPLOSION_RING_DELAY).timeout
 	elapsed += FxConfig.EXPLOSION_RING_DELAY
 	for coord in _explosion_ring_cells(center):
 		_flash_explosion_cell(coord, false)
 		_spawn_explosion_particles(coord, false)
+	if not accidental and fx_layer != null:
+		fx_layer.spawn_shockwave(center_canvas_pos)
+		_play_enemy_mine_hit_reaction(center)
 
 	if fx_layer != null:
 		var shake_scale = FxConfig.EXPLOSION_SHAKE_SCALE
@@ -165,7 +179,13 @@ func play_explosion(center, accidental):
 		await fx_layer.shake(shake_scale)
 		elapsed += FxConfig.SHAKE_DURATION
 
-	var remaining = max(0.0, FxConfig.EXPLOSION_TOTAL_BLOCK_SEC - elapsed)
+	if not accidental and fx_layer != null:
+		fx_layer.spawn_smoke(center_canvas_pos)
+
+	var total_block_sec = FxConfig.EXPLOSION_TOTAL_BLOCK_SEC
+	if accidental:
+		total_block_sec = FxConfig.ACCIDENTAL_EXPLOSION_TOTAL_BLOCK_SEC
+	var remaining = max(0.0, total_block_sec - elapsed)
 	if remaining > 0.0:
 		await get_tree().create_timer(remaining).timeout
 
@@ -293,16 +313,26 @@ func _explosion_ring_cells(center):
 
 
 func _flash_explosion_cell(coord, is_center):
-	var color = Color(1.0, 0.78, 0.20, 0.76)
+	var color = FxConfig.COLOR_EXPLOSION_RING_FLASH
 	if is_center:
-		color = Color(1.0, 0.24, 0.10, 0.88)
+		color = FxConfig.COLOR_EXPLOSION_CENTER_FLASH
 	cells[coord].flash(color, FxConfig.EXPLOSION_FLASH_SEC)
 
 
-func _spawn_explosion_particles(coord, is_center):
+func _spawn_explosion_particles(coord, is_center, intense_center := false):
 	if fx_layer == null:
 		return
-	fx_layer.spawn_explosion_particles(debug_cell_canvas_position(coord), is_center)
+	fx_layer.spawn_explosion_particles(debug_cell_canvas_position(coord), is_center, null, intense_center)
+
+
+func _play_enemy_mine_hit_reaction(center):
+	if enemy_token == null or not enemy_token.visible:
+		return
+	var enemy_coord = enemy_token.get_coord()
+	var distance = max(abs(enemy_coord.x - center.x), abs(enemy_coord.y - center.y))
+	if distance > Balance.EXPLOSION_RADIUS_CHEBYSHEV:
+		return
+	enemy_token.play_mine_hit_reaction(ViewConfig.cell_center(center))
 
 
 func _reveal_waves(revealed_cells, trigger):

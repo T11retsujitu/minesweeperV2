@@ -7,6 +7,12 @@ const ViewConfig = preload("res://scripts/presentation/view_config.gd")
 var shake_generation = 0
 var view_center = Vector2.ZERO
 var zoom_scalar = 1.0
+var punch_scale = 1.0:
+	set(value):
+		punch_scale = value
+		_apply_camera_state()
+var punch_world_target = Vector2.ZERO
+var punch_tween = null
 var board_rect = Rect2()
 var slot_rect = Rect2()
 
@@ -96,8 +102,41 @@ func reset_shake():
 	offset = Vector2.ZERO
 
 
+func punch(world_target):
+	if punch_tween != null:
+		punch_tween.kill()
+		punch_tween = null
+	punch_world_target = world_target
+	punch_scale = 1.0
+	punch_tween = create_tween()
+	punch_tween.set_ignore_time_scale(true)
+	punch_tween.tween_property(self, "punch_scale", FxConfig.PUNCH_ZOOM_SCALE, FxConfig.PUNCH_ZOOM_IN_SEC).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	punch_tween.tween_property(self, "punch_scale", 1.0, FxConfig.PUNCH_ZOOM_OUT_SEC).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+	punch_tween.finished.connect(_on_punch_finished)
+
+
+func reset_punch():
+	if punch_tween != null:
+		punch_tween.kill()
+		punch_tween = null
+	punch_world_target = Vector2.ZERO
+	punch_scale = 1.0
+	_apply_camera_state()
+
+
 func _apply_camera_state():
-	zoom = Vector2.ONE * zoom_scalar
+	var effective_zoom = zoom_scalar * punch_scale
+	if effective_zoom <= 0.0:
+		return
+	var effective_center = view_center
+	if not is_equal_approx(punch_scale, 1.0):
+		effective_center = punch_world_target + (view_center - punch_world_target) / punch_scale
+	zoom = Vector2.ONE * effective_zoom
 	var slot_center = slot_rect.get_center()
 	var viewport_size = get_viewport_rect().size
-	position = view_center - (slot_center - viewport_size * 0.5) / zoom_scalar
+	position = effective_center - (slot_center - viewport_size * 0.5) / effective_zoom
+
+
+func _on_punch_finished():
+	punch_tween = null
+	punch_scale = 1.0
