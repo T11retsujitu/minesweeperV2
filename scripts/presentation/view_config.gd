@@ -7,6 +7,10 @@ const CELL_SIZE_PX = 88.0
 const CELL_INSET_PX = 2.0
 const FIT_MARGIN_PX = 16.0
 const FIT_MAX_ZOOM = 1.0
+const MIN_ZOOM = 0.5
+const MAX_ZOOM = 2.0
+const DEFAULT_ZOOM = 1.0
+const ZOOM_WHEEL_STEP = 1.1
 
 
 static func world_pos(coord):

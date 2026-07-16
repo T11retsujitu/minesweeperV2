@@ -23,3 +23,5 @@ const ACCIDENTAL_MINE_DAMAGE = 3
 
 const GENERATION_MAX_TRIES = 100
 const LONG_PRESS_SEC = 0.4
+# 入力ジェスチャ: この距離を超えた押下移動はタップ/長押しではなくパン扱い。
+const DRAG_TAP_CANCEL_PX = 12

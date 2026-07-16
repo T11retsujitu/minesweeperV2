@@ -121,8 +121,11 @@ func debug_set_show_mines(enabled):
 
 
 func debug_cell_canvas_position(coord):
-	_refit_board_to_slot()
 	return board_view.debug_cell_canvas_position(coord)
+
+
+func debug_camera_state():
+	return board_view.debug_camera_state()
 
 
 func debug_wait_until_idle():
@@ -149,12 +152,12 @@ func _on_events_emitted(events):
 func _on_state_reset(_state):
 	if fx_layer != null:
 		fx_layer.clear_all()
-	_refit_board_to_slot()
 	_sync_hp_bars_immediate(controller.get_snapshot())
 	_hide_toast()
 	_hide_preview()
 	_hide_terminal()
 	_render()
+	_refit_board_to_slot()
 
 
 func _handle_events(events):

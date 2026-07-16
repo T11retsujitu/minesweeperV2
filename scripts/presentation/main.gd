@@ -64,6 +64,13 @@ func _run_debug_command(command):
 		await _push_mouse_click(_parse_coord(command.substr("rclick:".length())), MOUSE_BUTTON_RIGHT)
 	elif command.begins_with("presshold:"):
 		await _push_mouse_presshold(_parse_coord(command.substr("presshold:".length())))
+	elif command.begins_with("drag:"):
+		var points = _parse_drag_points(command.substr("drag:".length()))
+		await _push_mouse_drag(points[0], points[1])
+	elif command.begins_with("wheel:"):
+		await _push_mouse_wheel(command.substr("wheel:".length()))
+	elif command == "zoomstate":
+		_print_zoomstate()
 	elif command == "mode:fixed":
 		battle_screen.debug_set_mode("fixed")
 	elif command == "mode:random":
@@ -130,11 +137,91 @@ func _push_mouse_presshold(coord):
 	await get_tree().process_frame
 
 
+func _push_mouse_drag(from_pos, to_pos):
+	var press = InputEventMouseButton.new()
+	press.button_index = MOUSE_BUTTON_LEFT
+	press.pressed = true
+	press.position = from_pos
+	press.global_position = from_pos
+	get_viewport().push_input(press, true)
+	await get_tree().process_frame
+
+	var current = from_pos
+	var steps = 5
+	for step in range(1, steps + 1):
+		var next_pos = from_pos.lerp(to_pos, float(step) / float(steps))
+		var motion = InputEventMouseMotion.new()
+		motion.position = next_pos
+		motion.global_position = next_pos
+		motion.relative = next_pos - current
+		motion.button_mask = MOUSE_BUTTON_MASK_LEFT
+		get_viewport().push_input(motion, true)
+		current = next_pos
+		await get_tree().process_frame
+
+	var release = InputEventMouseButton.new()
+	release.button_index = MOUSE_BUTTON_LEFT
+	release.pressed = false
+	release.position = to_pos
+	release.global_position = to_pos
+	get_viewport().push_input(release, true)
+	await get_tree().process_frame
+
+
+func _push_mouse_wheel(command_text):
+	var at_index = command_text.find("@")
+	if at_index < 0:
+		return
+	var direction = command_text.substr(0, at_index)
+	var button_index = MOUSE_BUTTON_WHEEL_UP
+	if direction == "down":
+		button_index = MOUSE_BUTTON_WHEEL_DOWN
+	var position = _parse_screen_pos(command_text.substr(at_index + 1))
+
+	var press = InputEventMouseButton.new()
+	press.button_index = button_index
+	press.pressed = true
+	press.position = position
+	press.global_position = position
+	get_viewport().push_input(press, true)
+	await get_tree().process_frame
+
+	var release = InputEventMouseButton.new()
+	release.button_index = button_index
+	release.pressed = false
+	release.position = position
+	release.global_position = position
+	get_viewport().push_input(release, true)
+	await get_tree().process_frame
+
+
+func _print_zoomstate():
+	var state = battle_screen.debug_camera_state()
+	print("camera center=", state.get("center", Vector2.ZERO), " zoom=", state.get("zoom", 0.0))
+
+
 func _parse_coord(text):
 	var comma_index = text.find(",")
 	if comma_index < 0:
 		return Vector2i.ZERO
 	return Vector2i(int(text.substr(0, comma_index)), int(text.substr(comma_index + 1)))
+
+
+func _parse_drag_points(text):
+	var parts = text.split(",", false)
+	if parts.size() < 4:
+		return [Vector2.ZERO, Vector2.ZERO]
+	return [
+		Vector2(float(parts[0]), float(parts[1])),
+		Vector2(float(parts[2]), float(parts[3])),
+	]
+
+
+func _parse_screen_pos(text):
+	var comma_index = text.find(",")
+	if comma_index < 0:
+		return Vector2.ZERO
+	return Vector2(float(text.substr(0, comma_index)), float(text.substr(comma_index + 1)))
 
 
 func _save_screenshot(path):

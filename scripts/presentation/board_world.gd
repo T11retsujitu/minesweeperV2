@@ -25,6 +25,7 @@ var preview_center = null
 var preview_damage_map = {}
 var preview_cells = []
 var board_slot = null
+var refit_focus_world = null
 
 
 func _ready():
@@ -40,6 +41,10 @@ func update_from_snapshot(snapshot, debug_show_mines):
 	var revealable_cells = snapshot.get("revealable_cells", [])
 	var bumpable_cells = snapshot.get("bumpable_cells", [])
 	var territory_cells = snapshot.get("territory_cells", [])
+
+	refit_focus_world = null
+	if is_avatar:
+		refit_focus_world = ViewConfig.cell_center(player_position)
 
 	enemy_token.set_display(enemy_visible, enemy_position, int(snapshot["enemy_countdown"]))
 	player_token.set_display(is_avatar, player_position)
@@ -74,7 +79,6 @@ func set_fx_layer(value):
 
 func set_board_slot(value):
 	board_slot = value
-	refit_to_slot()
 
 
 func get_camera_rig():
@@ -86,7 +90,13 @@ func refit_to_slot(value = null):
 		board_slot = value
 	if camera_rig == null or board_slot == null:
 		return
-	camera_rig.refit(Balance.BOARD_W, Balance.BOARD_H, board_slot.get_global_rect())
+	camera_rig.refit(Balance.BOARD_W, Balance.BOARD_H, board_slot.get_global_rect(), refit_focus_world)
+
+
+func debug_camera_state():
+	if camera_rig == null:
+		return {}
+	return camera_rig.debug_state()
 
 
 func set_preview(center, preview):
@@ -183,7 +193,6 @@ func play_defuse_flash(coord, success):
 func debug_cell_canvas_position(coord):
 	if not cells.has(coord):
 		return Vector2.ZERO
-	refit_to_slot()
 	return get_global_transform_with_canvas() * ViewConfig.cell_center(coord)
 
 
