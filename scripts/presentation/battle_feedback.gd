@@ -207,7 +207,10 @@ func _terminal_title_from_events(events):
 	for event in events:
 		var event_type = event.get("type", "")
 		if event_type == "victory":
-			title = "VICTORY"
+			if bool(event.get("perfect", false)):
+				title = "PERFECT CLEAR"
+			else:
+				title = "VICTORY"
 		elif event_type == "defeat":
 			title = "DEFEAT"
 	return title

@@ -80,6 +80,8 @@ func _run_debug_command(command):
 		battle_screen.debug_cancel()
 	elif command == "retry":
 		battle_screen.debug_retry()
+	elif command == "finish":
+		battle_screen.debug_finish()
 	elif command.begins_with("wait:"):
 		var frames = int(command.substr("wait:".length()))
 		for _frame_index in range(frames):

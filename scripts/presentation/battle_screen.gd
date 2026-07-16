@@ -29,12 +29,17 @@ var status_label = null
 var log_box = null
 var log_scroll = null
 var mine_toggle = null
+var finish_button = null
+var toast_panel = null
+var toast_label = null
+var toast_tween = null
 var preview_overlay = null
 var preview_body_label = null
 var help_overlay = null
 var terminal_overlay = null
 var terminal_panel = null
 var terminal_title_label = null
+var terminal_stats_label = null
 var terminal_tween = null
 
 
@@ -73,6 +78,10 @@ func debug_cancel():
 
 func debug_retry():
 	_on_retry_pressed()
+
+
+func debug_finish():
+	_on_finish_pressed()
 
 
 func debug_set_mode(mode_name):
@@ -133,6 +142,7 @@ func _on_state_reset(_state):
 	if fx_layer != null:
 		fx_layer.clear_all()
 	_sync_hp_bars_immediate(controller.get_snapshot())
+	_hide_toast()
 	_hide_preview()
 	_hide_terminal()
 	_render()
@@ -152,6 +162,8 @@ func _handle_events(events):
 			_hide_terminal()
 		elif event_type == "flag_toggled":
 			flag_pop_events.append(event)
+		elif event_type == "combat_won":
+			_show_toast("ENEMY DOWN — collect the board!")
 
 	_update_status_from_events(events)
 	_render()
@@ -170,12 +182,18 @@ func _render():
 	if not controller.is_busy:
 		player_bar.animate_to(int(snapshot["player_hp"]))
 		enemy_bar.animate_to(int(snapshot["enemy_hp"]))
-	enemy_countdown_label.text = "Enemy countdown: %d" % int(snapshot["enemy_countdown"])
+	if _is_recovery_snapshot(snapshot):
+		enemy_countdown_label.text = "Countdown: —(stopped)"
+	else:
+		enemy_countdown_label.text = "Enemy countdown: %d" % int(snapshot["enemy_countdown"])
 	enemy_intent_label.text = _enemy_intent_text(snapshot)
 	_update_mine_counters(snapshot)
 	seed_label.text = "Seed: " + str(snapshot["seed_label"])
 	turn_label.text = "Turn: %d" % int(snapshot["turn_count"])
 	input_mode_label.text = "Input: " + _input_mode_text()
+	if finish_button != null:
+		finish_button.visible = _is_recovery_snapshot(snapshot)
+		finish_button.disabled = controller.is_busy
 	board_view.update_from_snapshot(snapshot, debug_show_mines)
 	board_view.set_input_enabled(not _is_overlay_blocking_board())
 	_update_log(snapshot["action_log"])
@@ -190,8 +208,8 @@ func _input_mode_text():
 
 
 func _enemy_intent_text(snapshot):
-	if int(snapshot["enemy_hp"]) <= 0:
-		return "Enemy intent: —"
+	if _is_recovery_snapshot(snapshot) or int(snapshot["enemy_hp"]) <= 0:
+		return "Enemy: defeated"
 	return "Enemy intent: Attack %d" % Balance.ENEMY_ATTACK
 
 
@@ -204,7 +222,14 @@ func _update_mine_counters(snapshot):
 		if cell_data["flag_state"] == "flagged":
 			flag_count += 1
 	mines_label.text = "Mines: %d" % (mine_count - flag_count)
-	flags_label.text = "Flags: %d" % flag_count
+	if _is_recovery_snapshot(snapshot):
+		flags_label.text = "Board: %d/%d" % [int(snapshot.get("safe_cells_revealed", 0)), int(snapshot.get("safe_cells_total", 0))]
+	else:
+		flags_label.text = "Flags: %d" % flag_count
+
+
+func _is_recovery_snapshot(snapshot):
+	return str(snapshot.get("phase", "")) == "recovery"
 
 
 func _is_overlay_blocking_board():
@@ -226,12 +251,17 @@ func _hide_preview():
 
 func _show_terminal(title):
 	_kill_terminal_tween()
-	terminal_title_label.text = title
-	terminal_title_label.add_theme_color_override("font_color", _terminal_title_color(title))
+	_hide_toast()
+	_prepare_terminal_content(title)
+	if title == "PERFECT CLEAR":
+		_spawn_perfect_terminal_burst()
 	terminal_overlay.visible = true
 	terminal_overlay.modulate = Color(1.0, 1.0, 1.0, 0.0)
 	_prepare_terminal_panel_pivot()
-	terminal_panel.scale = Vector2.ONE * FxConfig.TERMINAL_START_SCALE
+	var start_scale = FxConfig.TERMINAL_START_SCALE
+	if title == "PERFECT CLEAR":
+		start_scale = FxConfig.PERFECT_TERMINAL_START_SCALE
+	terminal_panel.scale = Vector2.ONE * start_scale
 	terminal_tween = create_tween()
 	terminal_tween.set_parallel(true)
 	terminal_tween.tween_property(terminal_overlay, "modulate:a", 1.0, FxConfig.TERMINAL_FADE_SEC)
@@ -243,8 +273,8 @@ func _show_terminal(title):
 
 func _show_terminal_immediate(title):
 	_kill_terminal_tween()
-	terminal_title_label.text = title
-	terminal_title_label.add_theme_color_override("font_color", _terminal_title_color(title))
+	_hide_toast()
+	_prepare_terminal_content(title)
 	terminal_overlay.visible = true
 	terminal_overlay.modulate = Color.WHITE
 	_prepare_terminal_panel_pivot()
@@ -261,6 +291,8 @@ func _hide_terminal():
 	if terminal_title_label != null:
 		terminal_title_label.text = ""
 		terminal_title_label.add_theme_color_override("font_color", FxConfig.COLOR_TERMINAL_DEFAULT)
+	if terminal_stats_label != null:
+		terminal_stats_label.text = ""
 
 
 func _kill_terminal_tween():
@@ -282,12 +314,47 @@ func _prepare_terminal_panel_pivot():
 	terminal_panel.pivot_offset = panel_size * 0.5
 
 
+func _prepare_terminal_content(title):
+	terminal_title_label.text = title
+	terminal_title_label.add_theme_color_override("font_color", _terminal_title_color(title))
+	if terminal_stats_label != null:
+		terminal_stats_label.text = _terminal_stats_text(controller.get_snapshot())
+
+
 func _terminal_title_color(title):
+	if title == "PERFECT CLEAR":
+		return FxConfig.COLOR_PERFECT
 	if title == "VICTORY":
 		return FxConfig.COLOR_TERMINAL_VICTORY
 	if title == "DEFEAT":
 		return FxConfig.COLOR_TERMINAL_DEFEAT
 	return FxConfig.COLOR_TERMINAL_DEFAULT
+
+
+func _terminal_stats_text(snapshot):
+	var safe_total = int(snapshot.get("safe_cells_total", 0))
+	var safe_revealed = int(snapshot.get("safe_cells_revealed", 0))
+	var board_percent = 0
+	if safe_total > 0:
+		board_percent = int(round(float(safe_revealed) * 100.0 / float(safe_total)))
+	return "Turns: %d\nHP: %d/%d\nBoard: %d%% (%d/%d)\nMisfires: %d" % [
+		int(snapshot["turn_count"]),
+		int(snapshot["player_hp"]),
+		Balance.PLAYER_MAX_HP,
+		board_percent,
+		safe_revealed,
+		safe_total,
+		int(snapshot.get("accidental_mine_count", 0)),
+	]
+
+
+func _spawn_perfect_terminal_burst():
+	if fx_layer == null:
+		return
+	var center = fx_layer.get_global_rect().get_center()
+	var offsets = [Vector2.ZERO, Vector2(-70.0, 24.0), Vector2(70.0, 24.0)]
+	for offset in offsets:
+		fx_layer.spawn_explosion_particles(center + offset, true, FxConfig.COLOR_PERFECT)
 
 
 func _format_preview_text(center, preview):
@@ -349,6 +416,10 @@ func _update_status_from_events(events):
 			next_status = "Dud detonation (%d, %d)" % [event["cell"].x, event["cell"].y]
 		elif event_type == "enemy_attacked":
 			next_status = "Enemy attacked"
+		elif event_type == "combat_won":
+			next_status = "Recovery"
+		elif event_type == "perfect_clear":
+			next_status = "PERFECT CLEAR"
 		elif event_type == "victory":
 			next_status = "VICTORY"
 		elif event_type == "defeat":
@@ -378,7 +449,10 @@ func _terminal_title_from_events(events):
 	for event in events:
 		var event_type = event.get("type", "")
 		if event_type == "victory":
-			title = "VICTORY"
+			if bool(event.get("perfect", false)):
+				title = "PERFECT CLEAR"
+			else:
+				title = "VICTORY"
 		elif event_type == "defeat":
 			title = "DEFEAT"
 	return title
@@ -415,6 +489,10 @@ func _on_cancel_detonation_pressed():
 
 func _on_retry_pressed():
 	controller.retry()
+
+
+func _on_finish_pressed():
+	controller.finish_recovery()
 
 
 func _on_fixed_pressed():
@@ -473,6 +551,7 @@ func _build_layout():
 	_build_preview_overlay()
 	_build_help_overlay()
 	_build_terminal_overlay()
+	_build_toast()
 
 
 func _build_hud():
@@ -539,6 +618,8 @@ func _build_controls():
 	_add_button(controls, "New Seed", _on_new_seed_pressed)
 	_add_button(controls, "Retry", _on_retry_pressed)
 	_add_button(controls, "Help", _on_help_pressed)
+	finish_button = _add_button(controls, "Finish", _on_finish_pressed)
+	finish_button.visible = false
 
 	if OS.is_debug_build():
 		mine_toggle = CheckBox.new()
@@ -621,7 +702,7 @@ func _build_terminal_overlay():
 	terminal_overlay = _make_overlay()
 	add_child(terminal_overlay)
 
-	terminal_panel = _make_overlay_panel(Vector2(430, 260))
+	terminal_panel = _make_overlay_panel(Vector2(430, 340))
 	terminal_overlay.add_child(terminal_panel)
 
 	var margin = _make_margin(22)
@@ -634,7 +715,66 @@ func _build_terminal_overlay():
 	terminal_title_label = _make_overlay_label("", 36)
 	terminal_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(terminal_title_label)
+	terminal_stats_label = _make_overlay_label("", 18)
+	terminal_stats_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(terminal_stats_label)
 	_add_button(box, "Retry", _on_retry_pressed)
+
+
+func _build_toast():
+	toast_panel = _make_panel(FxConfig.COLOR_TOAST_BACKGROUND)
+	toast_panel.custom_minimum_size = Vector2(460, 54)
+	toast_panel.anchor_left = 0.5
+	toast_panel.anchor_top = 0.0
+	toast_panel.anchor_right = 0.5
+	toast_panel.anchor_bottom = 0.0
+	toast_panel.offset_left = -230.0
+	toast_panel.offset_top = 88.0
+	toast_panel.offset_right = 230.0
+	toast_panel.offset_bottom = 142.0
+	toast_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	toast_panel.visible = false
+	add_child(toast_panel)
+
+	var margin = _make_margin(10)
+	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	toast_panel.add_child(margin)
+
+	toast_label = Label.new()
+	toast_label.text = ""
+	toast_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	toast_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	toast_label.add_theme_font_size_override("font_size", 18)
+	toast_label.add_theme_color_override("font_color", FxConfig.COLOR_TOAST_TEXT)
+	toast_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	margin.add_child(toast_label)
+
+
+func _show_toast(text):
+	_hide_toast()
+	toast_label.text = text
+	toast_panel.visible = true
+	toast_panel.modulate = Color.WHITE
+	toast_tween = create_tween()
+	toast_tween.tween_interval(max(0.0, FxConfig.TOAST_SEC - FxConfig.TOAST_FADE_SEC))
+	toast_tween.tween_property(toast_panel, "modulate:a", 0.0, FxConfig.TOAST_FADE_SEC)
+	toast_tween.finished.connect(_on_toast_finished)
+
+
+func _hide_toast():
+	if toast_tween != null:
+		toast_tween.kill()
+		toast_tween = null
+	if toast_panel != null:
+		toast_panel.visible = false
+		toast_panel.modulate = Color.WHITE
+
+
+func _on_toast_finished():
+	toast_tween = null
+	if toast_panel != null:
+		toast_panel.visible = false
+		toast_panel.modulate = Color.WHITE
 
 
 func _make_panel(color):
