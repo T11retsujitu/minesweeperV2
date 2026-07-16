@@ -57,15 +57,17 @@ func _test_outside_territory_prevents_attack(t):
 func _test_territory_cells_are_clipped(t):
 	var state = _avatar_state()
 	var cells = state.territory_cells()
-	t.equal(cells.size(), 20, "fixture territory clips to twenty cells")
+	t.equal(cells.size(), 9, "fixture territory contains nine cells")
 	for coord in cells:
-		t.check(coord.x >= 0 and coord.x <= 3, "territory x clipped")
-		t.check(coord.y >= 0 and coord.y <= 4, "territory y clipped")
+		t.check(coord.x >= 0 and coord.x <= 2, "territory x range")
+		t.check(coord.y >= 1 and coord.y <= 3, "territory y range")
 	t.equal(_keys(cells), _expected_fixture_territory_keys(), "fixture territory exact cells")
 
 	var snapshot = state.to_snapshot()
 	t.equal(_keys(snapshot["territory_cells"]), _expected_fixture_territory_keys(), "snapshot exposes living enemy territory")
 	t.check(snapshot["player_in_territory"], "fixture player starts inside territory")
+	_assert_radius_two_ring_is_outside(t, state)
+	_assert_corner_territory_clips(t, state)
 	state.enemy.hp = 0
 	t.equal(state.to_snapshot()["territory_cells"], [], "dead enemy hides territory cells")
 
@@ -88,9 +90,47 @@ func _avatar_state(position = Vector2i(1, 3)):
 
 func _expected_fixture_territory_keys():
 	var result = []
-	for y in range(0, 5):
-		for x in range(0, 4):
+	for y in range(1, 4):
+		for x in range(0, 3):
 			result.append("%d,%d" % [x, y])
+	result.sort()
+	return result
+
+
+func _assert_radius_two_ring_is_outside(t, state):
+	for coord in _old_radius_two_ring_coords():
+		state.player.position = coord
+		t.check(not state.is_player_in_territory(), "radius two ring is outside territory")
+
+
+func _assert_corner_territory_clips(t, state):
+	state.enemy.position = Vector2i(0, 0)
+	var cells = state.territory_cells()
+	t.equal(cells.size(), 4, "corner territory clips to four cells")
+	for coord in cells:
+		t.check(coord.x >= 0 and coord.x <= 1, "corner territory x clipped")
+		t.check(coord.y >= 0 and coord.y <= 1, "corner territory y clipped")
+	t.equal(_keys(cells), _corner_territory_keys(), "corner territory exact cells")
+
+
+func _old_radius_two_ring_coords():
+	return [
+		Vector2i(0, 0),
+		Vector2i(1, 0),
+		Vector2i(2, 0),
+		Vector2i(3, 0),
+		Vector2i(3, 1),
+		Vector2i(3, 2),
+		Vector2i(3, 3),
+		Vector2i(0, 4),
+		Vector2i(1, 4),
+		Vector2i(2, 4),
+		Vector2i(3, 4),
+	]
+
+
+func _corner_territory_keys():
+	var result = ["0,0", "1,0", "0,1", "1,1"]
 	result.sort()
 	return result
 
