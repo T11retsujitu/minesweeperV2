@@ -2,13 +2,13 @@
 
 > **読者**: 本プロジェクトを引き継ぐLLM(Claude / Codex)。人間向け説明は README.md。
 > **目的**: 最短で「何ができていて・何ができておらず・何が課題で・次に何をするか」を正確に把握させる。
-> **記載時点**: 2026-07-16, HEAD = ジュース・パス完了コミット(pv-vision-roadmap Step 1)。**このファイルは状態が変わったら必ず更新すること。**
+> **記載時点**: 2026-07-16, HEAD = Phase 2 盤上アバター実装コミット。**このファイルは状態が変わったら必ず更新すること。**
 
 ## 1. プロジェクト要約
 
 - **What**: マインスイーパーの地雷を「敵への攻撃資源」として起爆する短時間ローグライトの戦闘プロトタイプ。Godot 4.4.1 / GDScript / 720×1280縦画面 / gl_compatibility。
 - **核仮説(未判定)**: 数字を読んで特定した地雷を敵への攻撃として起爆する行為そのものが気持ちよいか。
-- **現フェーズ**: Phase 1(戦闘垂直スライス)= **実装・自動検証・実行確認まで完了**。手動プレイテスト(体験評価)が進行中。
+- **現フェーズ**: Phase 2 第一弾「盤上プレイヤーアバター(移動して開放モデル)」= **実装・自動検証・実行確認まで完了**。ユーザー実プレイでの手触り評価待ち。Phase 1 成果物は ruleset="phase1" として保存(テスト230件で検証継続)。
 - **体制(ユーザー指定・変更不可)**: Claude = 設計者/オーケストレーター/検証者。**実コーディングは Codex MCP**(`mcp__codex__codex` / `codex-reply`)に依頼する。ユーザーは基本Auto進行(確認質問は最小限)を希望。
 
 ## 2. 環境ファクト
@@ -17,7 +17,7 @@
 |------|-----|
 | Godot (WSL) | `~/.local/bin/godot`(4.4.1.stable.official)|
 | 実行環境 | WSL2 Ubuntu + WSLg(DISPLAY=:0。ウィンドウ実行・スクショ検証可)|
-| テスト | `~/.local/bin/godot --headless --path . --script res://tests/run_tests.gd` → **230 passed / exit 0 が正常** |
+| テスト | `~/.local/bin/godot --headless --path . --script res://tests/run_tests.gd` → **430 passed / exit 0 が正常**(旧ルール230+アバター200)|
 | Windowsテストプレイ | `C:\Users\a\minesweeperV2-play\`(プレイ用コピー)+ `C:\Users\a\Godot\Godot_v4.4.1-stable_win64.exe` + デスクトップ `Play_Minesweeper.bat` |
 | Windowsコピー同期 | `rsync -a --delete --exclude='.git' --exclude='.godot' --exclude='*.md' --exclude='docs' ~/src/minesweeperV2/ /mnt/c/Users/a/minesweeperV2-play/` — **コード変更のたびに必要(自動同期なし)** |
 | Git | ブランチ main のみ。remote(origin)は空。**push 禁止**。マイルストーン毎にローカルコミット、`Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>` 付与 |
@@ -31,7 +31,8 @@
 - **実マウス入力**: 左クリック開放・右クリック/長押しフラグ・起爆確認 = 合成イベント(`click:x,y`)を実入力パイプラインに流して検証(修正 `2d34a2a` 参照)
 - **handoff §12 完了条件**: 機能16項目・品質7項目・検証可能性3項目すべて充足
 - **演出(ジュース・パス = pv-vision-roadmap Step 1 完了)**: HPバー(ゴースト減少痕+busy中据え置き)/ ダメージフロート(-N / -N MINE! / -N ENEMY ATK、発生源セルから)/ 敵バッジのカウントダウン表示+残1で「1!」パルス / 攻撃連鎖演出(敵セル発光→弾→バー減少+小シェイク)/ 起爆演出(パーティクル+ヒットストップ+時間差リング+シェイク、誤爆1.5倍、dudは弱演出)/ 勝敗オーバーレイのフェード+スケール = **presentation層のみ・凍結領域差分ゼロ・WSLgスクショ+headless E2Eライン完走で検証**。新規: fx_config.gd(演出定数一元化)/ fx_layer.gd / damage_float.gd / hp_bar.gd / battle_feedback.gd(演出ディレクター)。同期モデル(is_busy中await→notify_effects_done)は不変。**ブロッキングawaitはSceneTreeTimerか永続ノード親のtweenのみ**(一時ノードのtween awaitはclear_all時にハングするため禁止)
-- **ドキュメント**: README / implementation-plan / architecture / decisions(D1〜D21)/ playtest-checklist / pv-vision-roadmap 完備
+- **盤上プレイヤーアバター(Phase 2 第一弾 = pv-vision-roadmap Step 4 の核心構図)**: ruleset="phase2_avatar" で移動して開放モデルを実装。MOVE(8近傍の開放済みセルへ、1ターン)/ REVEAL(プレイヤー8近傍のみ、フラッド無制限)/ DETONATE遠隔+対プレイヤースプラッシュ(意図起爆のみ、誤爆はフラット3)/ 移動もカウントダウン消費(countdown 3のまま、新バランス定数なし)。fixture に player_start(1,3) 追加キー。UI: 菱形マーカー+movable/revealableハイライト+移動演出+攻撃着弾のアバターセル化。**攻略オラクル: 勝利7T(最終HP6)/敗北5T(test_avatar_walkthrough で全手固定)**。設計判断は decisions D22〜D27
+- **ドキュメント**: README / implementation-plan / architecture / decisions(D1〜D27)/ playtest-checklist / pv-vision-roadmap 完備
 
 ## 4. できていない部分
 
@@ -59,8 +60,9 @@
 
 ## 6. 残タスク(優先順)
 
-1. **手動プレイテスト継続** — docs/playtest-checklist.md の10項目を記録。特に「起爆の手応え(核仮説)」。ジュース・パス後の再評価を含む
-2. 課題1の解消確認(演出強化は実装済み。ユーザー実プレイで「なぜHPが減ったか」が分かるようになったか確認 = Step 1 受入基準の最終項目)
+1. **アバタールールの実プレイ評価**(ユーザー)— 移動して開放モデルの手触り(移動コスト・隣接制約・スプラッシュリスク)。重すぎる場合の調整候補は decisions D25 参照
+2. **手動プレイテスト継続** — docs/playtest-checklist.md の10項目を記録。特に「起爆の手応え(核仮説)」。アバタールール前提で再評価
+3. (完了)課題1 = 演出強化(候補1〜3)+盤上アバター(候補4)で対応済み。ユーザー確認済み(演出分)
 3. プレイテスト結果に応じた `game_balance.gd` の数値調整(全数値がここに一元化されている)
 4. 判定が肯定的なら Phase 2 計画(敵2〜3種・敵移動・装甲・地雷除去・行動予告改善)— **PVビジョンとの統合は docs/pv-vision-roadmap.md 参照**
 5. (運用)コード変更時: テスト実行 → Windowsコピー rsync → 必要なら本ファイル更新
