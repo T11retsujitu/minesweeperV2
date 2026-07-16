@@ -8,7 +8,7 @@ const CombatState = preload("res://scripts/domain/combat_state.gd")
 const Fixtures = preload("res://scripts/generation/fixtures.gd")
 
 
-static func create_fixture_state(fixture_id = Fixtures.PHASE1_CORE_DEMO):
+static func create_fixture_state(fixture_id = Fixtures.PHASE1_CORE_DEMO, ruleset = CombatState.RULESET_PHASE1):
 	var data = Fixtures.get_phase1_core_demo()
 	var board_size = data["board_size"]
 	var board = BoardModel.new()
@@ -18,13 +18,16 @@ static func create_fixture_state(fixture_id = Fixtures.PHASE1_CORE_DEMO):
 	var player = PlayerModel.new()
 	var state = CombatState.new(board, enemy, player, 0, CombatState.MODE_FIXED)
 	state.fixture_id = fixture_id
+	state.ruleset = ruleset
+	if ruleset == CombatState.RULESET_AVATAR and data.has("player_start"):
+		state.player.position = data["player_start"]
 	return state
 
 
-static func create_state(mode, seed_value, first_reveal_cell = null):
+static func create_state(mode, seed_value, first_reveal_cell = null, ruleset = CombatState.RULESET_PHASE1):
 	if mode == CombatState.MODE_RANDOM:
-		return create_random_state(seed_value, first_reveal_cell)
-	return create_fixture_state()
+		return create_random_state(seed_value, first_reveal_cell, null, ruleset)
+	return create_fixture_state(Fixtures.PHASE1_CORE_DEMO, ruleset)
 
 
 static func ensure_first_reveal_safe(state, cell):
@@ -55,7 +58,7 @@ static func ensure_first_reveal_safe(state, cell):
 	return true
 
 
-static func create_random_state(seed_value, first_reveal_cell = null, max_tries = null):
+static func create_random_state(seed_value, first_reveal_cell = null, max_tries = null, ruleset = CombatState.RULESET_PHASE1):
 	var tries = Balance.GENERATION_MAX_TRIES
 	if max_tries != null:
 		tries = max_tries
@@ -76,8 +79,11 @@ static func create_random_state(seed_value, first_reveal_cell = null, max_tries 
 				continue
 		var state = _state_from_random_data(seed_value, enemy_position, mines)
 		if _is_valid_random_state(state):
+			state.ruleset = ruleset
+			if ruleset == CombatState.RULESET_AVATAR:
+				_apply_random_avatar_start(state, rng)
 			return state
-	var fallback = create_fixture_state()
+	var fallback = create_fixture_state(Fixtures.PHASE1_CORE_DEMO, ruleset)
 	fallback.mode = CombatState.MODE_RANDOM
 	fallback.seed = seed_value
 	fallback.used_fixture_fallback = true
@@ -100,6 +106,27 @@ static func _is_valid_random_state(state):
 	if enemy_cell == null or enemy_cell.contains_mine or not enemy_cell.is_revealed():
 		return false
 	return _count_zone_mines(state.board.get_mine_coords(), state.enemy.position) == Balance.ENEMY_ZONE_MINES
+
+
+static func _apply_random_avatar_start(state, rng):
+	var candidates = _avatar_start_candidates(state)
+	var selected = _take_random(rng, candidates, 1)
+	if selected.is_empty():
+		return
+	state.player.position = selected[0]
+	state.board.reveal_cell(state.player.position)
+
+
+static func _avatar_start_candidates(state):
+	var result = []
+	var zone_coords = _zone_coords(state.enemy.position)
+	for coord in _all_coords():
+		if coord == state.enemy.position or zone_coords.has(coord):
+			continue
+		var cell = state.board.get_cell(coord)
+		if cell != null and not cell.contains_mine:
+			result.append(coord)
+	return result
 
 
 static func _random_enemy_position(rng):

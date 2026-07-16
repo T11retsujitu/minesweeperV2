@@ -15,6 +15,7 @@ func run(t):
 	_test_controller_first_reveal_safety_is_deterministic(t)
 	_test_second_reveal_mine_is_accidental(t)
 	_test_generation_fallback(t)
+	_test_avatar_random_player_start(t)
 
 
 func _test_same_seed_same_layout(t):
@@ -105,6 +106,27 @@ func _test_second_reveal_mine_is_accidental(t):
 	t.check(controller.state.board.get_cell(second_mine).is_detonated(), "second reveal mine is detonated")
 
 
+func _test_avatar_random_player_start(t):
+	var seed_value = 97531
+	var a = BoardGenerator.create_state(CombatState.MODE_RANDOM, seed_value, null, CombatState.RULESET_AVATAR)
+	var b = BoardGenerator.create_state(CombatState.MODE_RANDOM, seed_value, null, CombatState.RULESET_AVATAR)
+	var player_cell = a.board.get_cell(a.player.position)
+	t.equal(a.ruleset, CombatState.RULESET_AVATAR, "avatar random state ruleset")
+	t.equal(a.player.position, b.player.position, "avatar random player start is deterministic")
+	t.check(player_cell != null, "avatar random player start is in bounds")
+	t.check(not player_cell.contains_mine, "avatar random player start is not a mine")
+	t.check(player_cell.is_revealed(), "avatar random player start is revealed")
+	t.check(not _is_enemy_zone(a, a.player.position), "avatar random player start is outside enemy zone")
+	t.check(a.player.position != a.enemy.position, "avatar random player start is not enemy position")
+
+	var fallback = BoardGenerator.create_random_state(2468, null, 0, CombatState.RULESET_AVATAR)
+	var fixture = Fixtures.get_phase1_core_demo()
+	t.check(fallback.used_fixture_fallback, "avatar random fallback reports fixture fallback")
+	t.equal(fallback.ruleset, CombatState.RULESET_AVATAR, "avatar random fallback preserves ruleset")
+	t.equal(fallback.player.position, fixture["player_start"], "avatar random fallback uses fixture player_start")
+	t.check(fallback.board.get_cell(fallback.player.position).is_revealed(), "avatar random fallback player start is revealed")
+
+
 func _count_zone_mines(state):
 	var count = 0
 	for coord in state.board.get_mine_coords():
@@ -140,6 +162,10 @@ func _first_hidden_mine(state):
 		if cell.is_hidden() and not cell.is_detonated():
 			return coord
 	return Vector2i.ZERO
+
+
+func _is_enemy_zone(state, coord):
+	return abs(coord.x - state.enemy.position.x) <= Balance.EXPLOSION_RADIUS_CHEBYSHEV and abs(coord.y - state.enemy.position.y) <= Balance.EXPLOSION_RADIUS_CHEBYSHEV
 
 
 func _has_event(events, event_type):

@@ -32,4 +32,5 @@ static func get_phase1_core_demo():
 			Vector2i(2, 3),
 			Vector2i(3, 3),
 		],
+		"player_start": Vector2i(1, 3),
 	}
