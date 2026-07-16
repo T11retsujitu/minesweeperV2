@@ -15,18 +15,20 @@ var press_elapsed = 0.0
 
 var background_panel = null
 var highlight_rect = null
+var overlay_draw = null
 var preview_rect = null
 var player_marker_outline = null
 var player_marker_fill = null
 var flash_rect = null
 var number_label = null
-var flag_label = null
 var detonation_label = null
 var mine_marker_label = null
 var preview_damage_label = null
 var enemy_badge = null
 var enemy_label = null
 var enemy_pulse_tween = null
+var highlight_border_visible = false
+var highlight_border_color = FxConfig.COLOR_HIGHLIGHT_MOVABLE_BORDER
 
 
 func _ready():
@@ -47,15 +49,15 @@ func set_display(cell_data, options):
 	var revealed = cell_data["reveal_state"] == "revealed"
 	var flagged = cell_data["flag_state"] == "flagged"
 	var detonated = cell_data["detonation_state"] == "detonated"
-	flagged_display = flagged
+	var adjacent_count = int(cell_data["adjacent_mine_count"])
+	flagged_display = flagged and not detonated
 
-	_apply_background(revealed, flagged, detonated)
+	_apply_background(revealed, flagged, detonated, adjacent_count)
 	number_label.text = ""
-	if revealed and int(cell_data["adjacent_mine_count"]) > 0 and not detonated:
-		number_label.text = str(cell_data["adjacent_mine_count"])
-		number_label.add_theme_color_override("font_color", _number_color(int(cell_data["adjacent_mine_count"])))
+	if revealed and adjacent_count > 0 and not detonated:
+		number_label.text = str(adjacent_count)
+		number_label.add_theme_color_override("font_color", _number_color(adjacent_count))
 
-	flag_label.visible = flagged and not detonated
 	detonation_label.visible = detonated
 	mine_marker_label.visible = bool(options.get("debug_mine", false))
 	var enemy_visible = bool(options.get("enemy_visible", false))
@@ -66,10 +68,13 @@ func set_display(cell_data, options):
 	var movable = bool(options.get("movable", false))
 	var revealable = bool(options.get("revealable", false))
 	highlight_rect.visible = movable or revealable
+	highlight_border_visible = movable or revealable
 	if movable:
 		highlight_rect.color = FxConfig.COLOR_HIGHLIGHT_MOVABLE
+		highlight_border_color = FxConfig.COLOR_HIGHLIGHT_MOVABLE_BORDER
 	elif revealable:
 		highlight_rect.color = FxConfig.COLOR_HIGHLIGHT_REVEALABLE
+		highlight_border_color = FxConfig.COLOR_HIGHLIGHT_REVEALABLE_BORDER
 
 	var player_here = bool(options.get("player_here", false))
 	player_marker_outline.visible = player_here
@@ -85,7 +90,8 @@ func set_display(cell_data, options):
 		preview_damage_label.text = str(options.get("preview_damage", ""))
 	else:
 		preview_damage_label.text = ""
-	queue_redraw()
+	if overlay_draw != null:
+		overlay_draw.queue_redraw()
 
 
 func flash(color, duration):
@@ -115,6 +121,8 @@ func _on_flash_finished():
 func _notification(what):
 	if what == NOTIFICATION_RESIZED:
 		_layout_player_marker()
+		if overlay_draw != null:
+			overlay_draw.queue_redraw()
 
 
 func _gui_input(event):
@@ -137,15 +145,43 @@ func _process(delta):
 		long_pressed.emit(coord)
 
 
-func _draw():
+func _on_overlay_draw():
+	var cell_size = overlay_draw.size
+	if cell_size == Vector2.ZERO:
+		cell_size = custom_minimum_size
 	if flagged_display:
-		var points = PackedVector2Array([
-			Vector2(18, 18),
-			Vector2(18, 54),
-			Vector2(58, 31),
-		])
-		draw_polygon(points, PackedColorArray([Color(1.0, 0.82, 0.12)]))
-		draw_line(Vector2(18, 18), Vector2(18, 66), Color(0.94, 0.96, 1.0), 3.0)
+		_draw_bomb(overlay_draw, cell_size)
+	if highlight_border_visible:
+		_draw_highlight_border(overlay_draw, cell_size)
+
+
+func _draw_bomb(canvas, cell_size):
+	var side = min(cell_size.x, cell_size.y)
+	if side <= 0.0:
+		return
+	var center = cell_size * 0.5
+	var radius = side * 0.27
+	var fuse_width = side * 0.045
+	var fuse_start = center + Vector2(radius * 0.58, -radius * 0.72)
+	var fuse_mid = center + Vector2(radius * 0.92, -radius * 1.08)
+	var fuse_end = center + Vector2(radius * 1.18, -radius * 1.26)
+	var spark_center = fuse_end + Vector2(radius * 0.16, -radius * 0.08)
+
+	canvas.draw_circle(center, radius, FxConfig.COLOR_BOMB_BODY_RIM)
+	canvas.draw_circle(center + Vector2(radius * 0.05, radius * 0.06), radius * 0.91, FxConfig.COLOR_BOMB_BODY)
+	canvas.draw_arc(center, radius * 0.68, deg_to_rad(206.0), deg_to_rad(286.0), 16, FxConfig.COLOR_BOMB_HIGHLIGHT, side * 0.025, true)
+	canvas.draw_line(fuse_start, fuse_mid, FxConfig.COLOR_BOMB_FUSE, fuse_width, true)
+	canvas.draw_line(fuse_mid, fuse_end, FxConfig.COLOR_BOMB_FUSE, fuse_width, true)
+	canvas.draw_circle(spark_center, radius * 0.17, FxConfig.COLOR_BOMB_SPARK)
+
+
+func _draw_highlight_border(canvas, cell_size):
+	var border_width = FxConfig.HIGHLIGHT_BORDER_WIDTH
+	var rect_size = cell_size - Vector2(border_width, border_width)
+	if rect_size.x <= 0.0 or rect_size.y <= 0.0:
+		return
+	var rect = Rect2(Vector2(border_width * 0.5, border_width * 0.5), rect_size)
+	canvas.draw_rect(rect, highlight_border_color, false, border_width)
 
 
 func _handle_mouse_button(event):
@@ -195,6 +231,12 @@ func _build_view():
 	highlight_rect.visible = false
 	add_child(highlight_rect)
 
+	overlay_draw = Control.new()
+	overlay_draw.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay_draw.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay_draw.draw.connect(_on_overlay_draw)
+	add_child(overlay_draw)
+
 	preview_rect = ColorRect.new()
 	preview_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
 	preview_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -219,13 +261,6 @@ func _build_view():
 	number_label = _make_label(34, HORIZONTAL_ALIGNMENT_CENTER, VERTICAL_ALIGNMENT_CENTER)
 	number_label.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(number_label)
-
-	flag_label = _make_label(34, HORIZONTAL_ALIGNMENT_CENTER, VERTICAL_ALIGNMENT_CENTER)
-	flag_label.text = "F"
-	flag_label.add_theme_color_override("font_color", Color(1.0, 0.96, 0.38))
-	flag_label.set_anchors_preset(Control.PRESET_FULL_RECT)
-	flag_label.visible = false
-	add_child(flag_label)
 
 	detonation_label = _make_label(36, HORIZONTAL_ALIGNMENT_CENTER, VERTICAL_ALIGNMENT_CENTER)
 	detonation_label.text = "X"
@@ -315,7 +350,7 @@ func _stop_enemy_pulse():
 		enemy_badge.modulate = Color.WHITE
 
 
-func _apply_background(revealed, flagged, detonated):
+func _apply_background(revealed, flagged, detonated, adjacent_count):
 	var style = StyleBoxFlat.new()
 	style.corner_radius_top_left = 5
 	style.corner_radius_top_right = 5
@@ -329,7 +364,7 @@ func _apply_background(revealed, flagged, detonated):
 		style.bg_color = Color(0.12, 0.13, 0.15)
 		style.border_color = Color(0.03, 0.03, 0.04)
 	elif revealed:
-		style.bg_color = Color(0.73, 0.76, 0.76)
+		style.bg_color = _heat_color(adjacent_count)
 		style.border_color = Color(0.48, 0.52, 0.53)
 	elif flagged:
 		style.bg_color = Color(0.48, 0.16, 0.16)
@@ -340,6 +375,12 @@ func _apply_background(revealed, flagged, detonated):
 		style.shadow_color = Color(0.04, 0.06, 0.07, 0.35)
 		style.shadow_size = 3
 	background_panel.add_theme_stylebox_override("panel", style)
+
+
+func _heat_color(adjacent_count):
+	var max_index = FxConfig.COLOR_HEAT_LEVELS.size() - 1
+	var index = int(clamp(adjacent_count, 0, max_index))
+	return FxConfig.COLOR_HEAT_LEVELS[index]
 
 
 func _layout_player_marker():

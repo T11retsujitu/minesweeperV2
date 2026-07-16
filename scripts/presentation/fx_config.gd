@@ -40,8 +40,27 @@ const COLOR_DAMAGE_ENEMY_ATK = Color(1.0, 0.35, 0.22)
 const COLOR_DAMAGE_MINE = Color(1.0, 0.62, 0.18)
 const COLOR_DAMAGE_DEALT = Color(1.0, 0.85, 0.30)
 const COLOR_PLAYER_MARKER = Color(0.00, 0.72, 0.70, 0.85)
-const COLOR_HIGHLIGHT_MOVABLE = Color(0.00, 0.82, 0.82, 0.18)
-const COLOR_HIGHLIGHT_REVEALABLE = Color(1.0, 0.86, 0.24, 0.20)
+const COLOR_HIGHLIGHT_MOVABLE = Color(0.00, 0.82, 0.82, 0.34)
+const COLOR_HIGHLIGHT_REVEALABLE = Color(1.0, 0.86, 0.24, 0.38)
+const COLOR_HIGHLIGHT_MOVABLE_BORDER = Color(0.00, 0.88, 0.88, 0.95)
+const COLOR_HIGHLIGHT_REVEALABLE_BORDER = Color(1.0, 0.82, 0.18, 0.95)
+const HIGHLIGHT_BORDER_WIDTH = 2.0
+const COLOR_HEAT_LEVELS = [
+	Color(0.73, 0.76, 0.76),
+	Color(0.69, 0.79, 0.68),
+	Color(0.78, 0.80, 0.62),
+	Color(0.84, 0.75, 0.56),
+	Color(0.88, 0.68, 0.51),
+	Color(0.89, 0.60, 0.50),
+	Color(0.88, 0.54, 0.50),
+	Color(0.85, 0.48, 0.49),
+	Color(0.80, 0.42, 0.46),
+]
+const COLOR_BOMB_BODY = Color(0.035, 0.040, 0.045)
+const COLOR_BOMB_BODY_RIM = Color(0.12, 0.13, 0.14)
+const COLOR_BOMB_HIGHLIGHT = Color(0.78, 0.84, 0.86, 0.62)
+const COLOR_BOMB_FUSE = Color(0.26, 0.18, 0.10)
+const COLOR_BOMB_SPARK = Color(1.0, 0.63, 0.12)
 const COLOR_ENEMY_ATTACK_STATUS = Color(1.0, 0.55, 0.18)
 const COLOR_ENEMY_BADGE = Color(0.83, 0.18, 0.24)
 const COLOR_ENEMY_BADGE_DANGER = Color(1.0, 0.18, 0.12)

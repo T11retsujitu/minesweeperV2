@@ -20,6 +20,8 @@ var player_bar = null
 var enemy_bar = null
 var enemy_countdown_label = null
 var enemy_intent_label = null
+var mines_label = null
+var flags_label = null
 var seed_label = null
 var turn_label = null
 var input_mode_label = null
@@ -164,7 +166,8 @@ func _render():
 		player_bar.animate_to(int(snapshot["player_hp"]))
 		enemy_bar.animate_to(int(snapshot["enemy_hp"]))
 	enemy_countdown_label.text = "Enemy countdown: %d" % int(snapshot["enemy_countdown"])
-	enemy_intent_label.text = "Enemy intent: Attack 2"
+	enemy_intent_label.text = _enemy_intent_text(snapshot)
+	_update_mine_counters(snapshot)
 	seed_label.text = "Seed: " + str(snapshot["seed_label"])
 	turn_label.text = "Turn: %d" % int(snapshot["turn_count"])
 	input_mode_label.text = "Input: " + _input_mode_text()
@@ -179,6 +182,24 @@ func _input_mode_text():
 	if preview_overlay.visible:
 		return "confirm_detonation"
 	return "idle"
+
+
+func _enemy_intent_text(snapshot):
+	if int(snapshot["enemy_hp"]) <= 0:
+		return "Enemy intent: —"
+	return "Enemy intent: Attack %d" % Balance.ENEMY_ATTACK
+
+
+func _update_mine_counters(snapshot):
+	var mine_count = 0
+	var flag_count = 0
+	for cell_data in snapshot["cells"]:
+		if bool(cell_data["contains_mine"]):
+			mine_count += 1
+		if cell_data["flag_state"] == "flagged":
+			flag_count += 1
+	mines_label.text = "Mines: %d" % (mine_count - flag_count)
+	flags_label.text = "Flags: %d" % flag_count
 
 
 func _is_overlay_blocking_board():
@@ -451,7 +472,7 @@ func _build_layout():
 
 func _build_hud():
 	var panel = _make_panel(Color(0.13, 0.17, 0.19))
-	panel.custom_minimum_size = Vector2(0, 150)
+	panel.custom_minimum_size = Vector2(0, 184)
 	root.add_child(panel)
 
 	var margin = _make_margin(14)
@@ -469,6 +490,8 @@ func _build_hud():
 	enemy_bar.setup("ENEMY", Balance.ENEMY_MAX_HP, FxConfig.COLOR_HP_ENEMY)
 	enemy_countdown_label = _make_hud_label()
 	enemy_intent_label = _make_hud_label()
+	mines_label = _make_hud_label()
+	flags_label = _make_hud_label()
 	seed_label = _make_hud_label()
 	turn_label = _make_hud_label()
 	input_mode_label = _make_hud_label()
@@ -477,7 +500,7 @@ func _build_hud():
 
 	hud.add_child(player_bar)
 	hud.add_child(enemy_bar)
-	for label in [enemy_countdown_label, enemy_intent_label, seed_label, turn_label, input_mode_label, status_label]:
+	for label in [enemy_countdown_label, enemy_intent_label, mines_label, flags_label, seed_label, turn_label, input_mode_label, status_label]:
 		hud.add_child(label)
 
 

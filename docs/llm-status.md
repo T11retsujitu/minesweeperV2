@@ -32,6 +32,7 @@
 - **handoff §12 完了条件**: 機能16項目・品質7項目・検証可能性3項目すべて充足
 - **演出(ジュース・パス = pv-vision-roadmap Step 1 完了)**: HPバー(ゴースト減少痕+busy中据え置き)/ ダメージフロート(-N / -N MINE! / -N ENEMY ATK、発生源セルから)/ 敵バッジのカウントダウン表示+残1で「1!」パルス / 攻撃連鎖演出(敵セル発光→弾→バー減少+小シェイク)/ 起爆演出(パーティクル+ヒットストップ+時間差リング+シェイク、誤爆1.5倍、dudは弱演出)/ 勝敗オーバーレイのフェード+スケール = **presentation層のみ・凍結領域差分ゼロ・WSLgスクショ+headless E2Eライン完走で検証**。新規: fx_config.gd(演出定数一元化)/ fx_layer.gd / damage_float.gd / hp_bar.gd / battle_feedback.gd(演出ディレクター)。同期モデル(is_busy中await→notify_effects_done)は不変。**ブロッキングawaitはSceneTreeTimerか永続ノード親のtweenのみ**(一時ノードのtween awaitはclear_all時にハングするため禁止)
 - **盤上プレイヤーアバター(Phase 2 第一弾 = pv-vision-roadmap Step 4 の核心構図)**: ruleset="phase2_avatar" で移動して開放モデルを実装。MOVE(8近傍の開放済みセルへ、1ターン)/ REVEAL(プレイヤー8近傍のみ、フラッド無制限)/ DETONATE遠隔+対プレイヤースプラッシュ(意図起爆のみ、誤爆はフラット3)/ 移動もカウントダウン消費(countdown 3のまま、新バランス定数なし)。fixture に player_start(1,3) 追加キー。UI: 菱形マーカー+movable/revealableハイライト+移動演出+攻撃着弾のアバターセル化。**攻略オラクル: 勝利7T(最終HP6)/敗北5T(test_avatar_walkthrough で全手固定)**。設計判断は decisions D22〜D27
+- **UX改良 M1a「読める風景」(game-design §7.5-1 の presentation 部分、2026-07-16)**: フラグ=爆弾スプライト風表示(描画プリミティブ)/ 開放セルの数字ヒートマップ(fx_config.COLOR_HEAT_LEVELS)/ 合法手ハイライト強化(alpha 0.34/0.38+2pxボーダー枠)/ HUD に Mines/Flags カウンター(snapshot から presentation 側集計)/ 敵インテント動的化 = **presentation層のみ・テスト430不変・WSLgスクショ検証**。注意: CellView 親の `_draw()` は子ノードに隠れるため、カスタム描画は `overlay_draw` 子ノード(highlight_rect 直後)の draw シグナルで行う
 - **ドキュメント**: README / implementation-plan / architecture / decisions(D1〜D27)/ playtest-checklist / pv-vision-roadmap 完備
 
 ## 4. できていない部分
